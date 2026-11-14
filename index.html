@@ -34,7 +34,7 @@
   .tool{height:44px;border-radius:22px;background:rgba(255,255,255,.18);color:#fff;display:flex;align-items:center;gap:6px;padding:0 14px;font-weight:600;font-size:14px;flex:none}
   .tool:hover{background:rgba(255,255,255,.28)}
   .tool svg{width:20px;height:20px}
-  .suggest{position:absolute;top:48px;left:0;right:0;background:#fff;color:var(--text);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow:hidden;display:none}
+  .suggest{position:absolute;z-index:30;top:48px;left:0;right:0;max-height:min(70vh,520px);overflow-y:auto;background:#fff;color:var(--text);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);overflow:hidden;display:none}
   .suggest.open{display:block}
   .suggest button{display:block;width:100%;text-align:left;padding:11px 14px;border-bottom:1px solid var(--line)}
   .suggest button:last-child{border-bottom:0}
@@ -46,7 +46,39 @@
   .fav.cur{background:#fff;color:var(--blue)}
   .fav .go{padding:0 4px 0 12px;height:32px;font-weight:600}
   .fav .x{width:28px;height:32px;opacity:.7;font-size:16px}
-  .favs-empty{font-size:13px;opacity:.8;margin-top:8px}
+  .favs-empty{font-size:13px;opacity:.85;align-self:center;white-space:nowrap}
+  .fav.mgr{background:rgba(255,255,255,.28)}
+  .fav.mgr.on{background:#ffc107;color:#3b2a00}
+  .fav.mgr .go{padding:0 12px}
+  .suggest .s-name{font-weight:600}
+  .suggest .s-cc{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:#8a97a6;border-radius:4px;padding:0 4px;margin-left:6px;vertical-align:1px}
+  .suggest .s-cc.AT{background:#d7262f}.suggest .s-cc.DE{background:#2a2a2a}.suggest .s-cc.CH{background:#c8102e}
+  .suggest small{display:block}
+  .suggest .more{color:var(--blue);font-weight:600;font-size:14px}
+  .suggest .info{color:var(--muted);font-size:13px;cursor:default}
+
+  /* Favoriten-Seite */
+  .fbar{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:4px 10px;padding:10px 14px 10px 10px;border-bottom:1px solid var(--line);border-left:6px solid #ccd;cursor:pointer;position:relative}
+  .fbar:last-child{border-bottom:0}
+  .fbar:hover{background:#f6f9fc}
+  .fbar.cur{background:var(--sel)}
+  .fbar .fn{min-width:0}
+  .fbar .fn b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fbar .fn small{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fbar .ft{font-size:30px;font-weight:300;line-height:1;text-align:right}
+  .fbar .ft small{display:block;font-size:12px;font-weight:600;margin-top:3px;white-space:nowrap}
+  .fbar .fm{grid-column:2/4;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--muted)}
+  .fbar .fm span{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+  .fbar .fm .rain{color:var(--rain)} .fbar .fm .snow{color:#4b8fd6} .fbar .fm .sun{color:#b07a00}
+  .fbar .fa{grid-column:1/4;display:flex;gap:6px;justify-content:flex-end;padding-top:4px}
+  .fbar .fa button{height:34px;min-width:40px;border-radius:8px;background:#eef2f6;font-size:15px;padding:0 10px}
+  .fbar .fa button.del{background:#fde8e8;color:#b3261e}
+  .fbar .fa button:disabled{opacity:.35}
+  .tools-row{display:flex;flex-wrap:wrap;gap:8px;padding:12px 14px}
+  .btn2{height:40px;border-radius:20px;padding:0 14px;background:#eef2f6;font-weight:600;font-size:14px;color:var(--blue)}
+  .btn2:hover{background:#e1e9f2}
+  .btn2.on{background:var(--blue);color:#fff}
+  .empty-favs{padding:22px 16px;text-align:center;color:var(--muted)}
 
   /* Tabs */
   .tabs{position:sticky;top:0;z-index:15;background:var(--bg);padding:10px 16px}
@@ -322,6 +354,7 @@ const key = l => l.lat.toFixed(3) + ',' + l.lon.toFixed(3);
 
 /* ---------- Laden ---------- */
 async function loadLocation(loc) {
+  if (state.view === 'favs') state.view = state.prevView || 'today';
   state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null; state.radarSrc = null;
   store.set('lastLoc', loc);
   destroyRadar();
@@ -388,52 +421,178 @@ function renderHeader() {
   $('#favBtn').querySelector('path').setAttribute('fill', isFav ? '#ffc107' : 'none');
   $('#favBtn').querySelector('svg').setAttribute('stroke', isFav ? '#ffc107' : 'currentColor');
   $('#favBtn').title = isFav ? 'Aus Favoriten entfernen' : 'Als Favorit speichern';
-  $('#favs').innerHTML = favs.length
-    ? favs.map((f, i) => `<div class="fav ${l && key(f) === key(l) ? 'cur' : ''}"><button class="go" data-i="${i}">${esc(f.name)}</button><button class="x" data-x="${i}" aria-label="${esc(f.name)} entfernen">×</button></div>`).join('')
-    : '<div class="favs-empty">☆ Tippe auf den Stern, um diesen Ort als Favorit zu speichern.</div>';
+  $('#favs').innerHTML = `<div class="fav mgr ${state.view === 'favs' ? 'on' : ''}"><button class="go" data-mgr="1">☰ Favoriten${favs.length ? ' (' + favs.length + ')' : ''}</button></div>`
+    + (favs.length
+      ? favs.map((f, i) => `<div class="fav ${l && key(f) === key(l) ? 'cur' : ''}"><button class="go" data-i="${i}" style="padding-right:12px">${esc(f.name)}</button></div>`).join('')
+      : '<div class="favs-empty">☆ Stern antippen = Ort merken</div>');
 }
+function saveFavs() { store.set('favs', favs); store.set('favsChanged', Date.now()); renderHeader(); askPersist(); }
+/* Browser bitten, die gespeicherten Daten dauerhaft zu behalten (nicht automatisch aufräumen) */
+function askPersist() { try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {} }
 $('#favBtn').onclick = () => {
   const l = state.loc; if (!l) return;
   const i = favs.findIndex(f => key(f) === key(l));
   if (i >= 0) { favs.splice(i, 1); toast('Aus Favoriten entfernt'); }
   else { favs.push({ name: l.name, sub: l.sub, lat: l.lat, lon: l.lon, cc: l.cc }); toast('„' + l.name + '“ als Favorit gespeichert'); }
-  store.set('favs', favs); renderHeader();
+  saveFavs();
+  if (state.view === 'favs') render();
 };
 $('#favs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.x != null) { favs.splice(+b.dataset.x, 1); store.set('favs', favs); renderHeader(); }
-  else if (b.dataset.i != null) loadLocation(favs[+b.dataset.i]);
+  if (b.dataset.mgr) {
+    if (state.view === 'favs') state.view = state.prevView || 'today';
+    else { state.prevView = state.view; state.view = 'favs'; }
+    render(); renderHeader(); window.scrollTo(0, 0);
+  }
+  else if (b.dataset.i != null) openFav(+b.dataset.i);
 };
+function openFav(i) { loadLocation(favs[i]); }
 
-/* ---------- Ortssuche ---------- */
-const q = $('#q'), sug = $('#suggest'); let sugItems = [], sugT, sugSeq = 0, sugActive = -1;
-function showSug(items) {
+/* ---------- Ortssuche ----------
+   1. Open-Meteo-Ortsdatenbank (GeoNames) für schnelle Vorschläge beim Tippen
+   2. OpenStreetMap/Nominatim für Postleitzahlen (v. a. Österreich) sowie Ortsteile und Weiler
+      – laut Nutzungsregeln nicht als Tipp-Vorschlag, sondern nur für vollständige PLZ bzw. auf Knopfdruck, max. 1 Anfrage/s
+   Treffer aus Österreich, Deutschland, Schweiz/Liechtenstein und Südtirol stehen vorne. */
+const q = $('#q'), sug = $('#suggest'); let sugItems = [], sugT, sugSeq = 0, sugActive = -1, sugQuery = '';
+const CC_RANK = { AT: 0, DE: 1, CH: 2, LI: 2, IT: 3 };
+const CC_NAME = { AT: 'Österreich', DE: 'Deutschland', CH: 'Schweiz', LI: 'Liechtenstein', IT: 'Italien' };
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss')
+  .replace(/\bst\.?\s*/g, 'sankt ').replace(/[-\s]+/g, ' ').trim();
+const cleanRegion = s => String(s || '').replace(/^Politischer Bezirk /, 'Bezirk ').replace(/^Regierungsbezirk /, 'Reg.-Bez. ').replace(/^Landkreis /, 'Lkr. ');
+function parseQuery(v) {
+  let m = v.match(/^(\d{4,5})(?:[\s,]+(.+))?$/);
+  if (m) return { plz: m[1], name: (m[2] || '').trim() };
+  m = v.match(/^(.+?)[\s,]+(\d{4,5})$/);
+  if (m) return { plz: m[2], name: m[1].trim() };
+  return { plz: '', name: v };
+}
+let nomLast = 0;
+async function nominatim(params) {
+  const wait = nomLast + 1100 - Date.now(); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  nomLast = Date.now();
+  return getJSON('https://nominatim.openstreetmap.org/search?' + qs({ format: 'jsonv2', addressdetails: 1, 'accept-language': 'de', ...params }));
+}
+const fromOM = r => ({ name: r.name, plz: (r.postcodes || [])[0] || '', plzs: r.postcodes || [], region: cleanRegion(r.admin2 || r.admin3 || ''), state: r.admin1 || '',
+  cc: (r.country_code || '').toUpperCase(), country: r.country || '', lat: r.latitude, lon: r.longitude, pop: r.population || 0 });
+function fromNom(r) {
+  const a = r.address || {}, isPlz = r.addresstype === 'postcode';
+  const town = a.city || a.town || a.village || a.municipality || a.hamlet || a.suburb || '';
+  return { name: isPlz ? (town || r.name) : (r.name || town), plz: a.postcode || '', plzs: a.postcode ? [a.postcode] : [],
+    region: cleanRegion(isPlz ? (a.county || '') : (a.municipality && a.municipality !== r.name ? a.municipality : (a.county || a.city || a.town || ''))),
+    state: a.state || '', cc: (a.country_code || '').toUpperCase(), country: a.country || '', lat: +r.lat, lon: +r.lon, pop: 0, nom: true };
+}
+function rankResults(list, pq) {
+  const want = norm(pq.name), seen = [];
+  const out = [];
+  list.forEach(r => {
+    if (!r || !isFinite(r.lat) || !isFinite(r.lon)) return;
+    if (seen.some(o => norm(o.name) === norm(r.name) && Math.abs(o.lat - r.lat) < .03 && Math.abs(o.lon - r.lon) < .03)) return;
+    seen.push(r); out.push(r);
+  });
+  // Reihenfolge: passende PLZ › Großstadt mit genau diesem Namen (z. B. Paris) › Österreich, Deutschland, Schweiz … › Namensgleichheit › Einwohner
+  const exact = r => norm(r.name) === want, pre = r => norm(r.name).startsWith(want);
+  const sc = r => [
+    pq.plz ? (r.plzs.includes(pq.plz) ? 0 : 1) : 0,
+    want && exact(r) && r.pop >= 100000 ? 0 : 1,
+    CC_RANK[r.cc] ?? 5,
+    want ? (exact(r) ? 0 : pre(r) ? 1 : 2) : 0,
+    -(r.pop || 0)
+  ];
+  return out.sort((a, b) => { const x = sc(a), y = sc(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; });
+}
+const subLine = r => [r.plz, r.region && r.region !== r.name ? r.region : '', r.state, r.cc in CC_NAME ? '' : r.country].filter(Boolean).join(' · ');
+function showSug(items, opts = {}) {
   sugItems = items; sugActive = -1;
-  sug.innerHTML = items.length ? items.map((r, i) => `<button data-i="${i}">${esc(r.name)} <small>${esc(r.sub)}</small></button>`).join('') : '<button disabled><small>Kein Ort gefunden</small></button>';
-  sug.classList.add('open');
+  let h = items.map((r, i) => `<button data-i="${i}"><span class="s-name">${esc(r.name)}</span>${r.cc ? `<span class="s-cc ${esc(r.cc)}">${esc(r.cc)}</span>` : ''}<small>${esc(subLine(r))}</small></button>`).join('');
+  if (!items.length && !opts.loading) h += `<button class="info" disabled>Kein Ort gefunden${parseQuery(sugQuery).plz ? ' – PLZ prüfen' : ''}</button>`;
+  if (opts.loading) h += `<button class="info" disabled>${esc(opts.loading)}</button>`;
+  else if (!opts.noMore) h += `<button class="more" data-more="1">🔎 Weitere Orte, Ortsteile &amp; Weiler suchen</button>`;
+  sug.innerHTML = h; sug.classList.add('open');
+}
+async function searchOM(name) {
+  const tries = [name]; if (/\bst\.?\s/i.test(name)) tries.push(name.replace(/\bst\.?\s*/i, 'Sankt '));
+  // bei Verbindungsfehler einmal wiederholen; schlägt beides fehl, wird ein Fehler gemeldet
+  const get = async t => { const u = API.geocode + '?' + qs({ name: t, count: 12, language: 'de', format: 'json' });
+    try { return await getJSON(u); } catch (e) { await new Promise(r => setTimeout(r, 400)); return getJSON(u); } };
+  const res = await Promise.allSettled(tries.map(get));
+  if (res.every(r => r.status === 'rejected')) throw new Error('geocoding');
+  return res.flatMap(r => r.status === 'fulfilled' ? (r.value.results || []).map(fromOM) : []);
+}
+async function runSearch(v) {
+  const seq = ++sugSeq, pq = parseQuery(v);
+  sugQuery = v;
+  try {
+    if (pq.plz) {
+      showSug([], { loading: 'Suche Postleitzahl ' + pq.plz + ' …' });
+      const ccs = pq.plz.length === 4 ? 'at,ch,li' : 'de';
+      const [om, nom] = await Promise.all([
+        searchOM(pq.name || pq.plz).catch(() => []),
+        nominatim({ postalcode: pq.plz, countrycodes: ccs, limit: 10 }).then(a => a.map(fromNom)).catch(() => [])
+      ]);
+      if (seq !== sugSeq) return;
+      let list = rankResults(nom.concat(om.filter(r => r.plzs.includes(pq.plz) || (pq.name && norm(r.name).startsWith(norm(pq.name))))), pq);
+      if (pq.name) list = list.filter(r => r.plzs.includes(pq.plz) || norm(r.name).includes(norm(pq.name)));
+      showSug(list.slice(0, 10));
+    } else {
+      let om;
+      try { om = await searchOM(v); }
+      catch (e) {
+        // Ortsdatenbank nicht erreichbar -> gleich in OpenStreetMap suchen
+        if (seq !== sugSeq) return;
+        showSug([], { loading: 'Suche in OpenStreetMap …' });
+        om = (await nominatim({ q: v, limit: 12, countrycodes: 'at,de,ch,li,it', featureType: 'settlement' })).map(fromNom);
+        if (!om.length) om = (await nominatim({ q: v, limit: 10 })).map(fromNom);
+      }
+      if (seq !== sugSeq) return;
+      showSug(rankResults(om, pq).slice(0, 10));
+    }
+  } catch (e) { if (seq === sugSeq) toast('Suche momentan nicht möglich'); }
+}
+async function searchMore() {
+  const v = sugQuery, pq = parseQuery(v), seq = ++sugSeq, prev = sugItems;
+  showSug(prev, { loading: 'Suche weitere Orte in OpenStreetMap …' });
+  try {
+    const params = { limit: 15, countrycodes: 'at,de,ch,li,it', featureType: 'settlement' };
+    if (pq.plz && pq.name) Object.assign(params, { q: pq.name + ' ' + pq.plz });
+    else if (pq.plz) { delete params.featureType; params.q = pq.plz; }
+    else params.q = v;
+    let more = (await nominatim(params)).map(fromNom);
+    if (!more.length) more = (await nominatim({ q: v, limit: 15 })).map(fromNom);  // weltweit
+    if (seq !== sugSeq) return;
+    showSug(rankResults(prev.concat(more), pq).slice(0, 20), { noMore: true });
+  } catch (e) { if (seq === sugSeq) { showSug(prev, { noMore: true }); toast('OpenStreetMap-Suche momentan nicht möglich'); } }
 }
 q.addEventListener('input', () => {
   clearTimeout(sugT);
   const v = q.value.trim();
-  if (v.length < 2) { sug.classList.remove('open'); return; }
-  sugT = setTimeout(async () => {
-    const seq = ++sugSeq;
-    try {
-      const j = await getJSON(API.geocode + '?' + qs({ name: v, count: 8, language: 'de', format: 'json' }));
-      if (seq !== sugSeq) return;
-      showSug((j.results || []).map(r => ({ name: r.name, sub: [r.postcodes && r.postcodes[0], r.admin1, r.country].filter(Boolean).join(', '), lat: r.latitude, lon: r.longitude, cc: (r.country_code || '').toUpperCase() })));
-    } catch (e) { if (seq === sugSeq) toast('Suche momentan nicht möglich'); }
-  }, 280);
+  if (v.length < 2) { sug.classList.remove('open'); sugSeq++; return; }
+  const pq = parseQuery(v);
+  if (/^\d+$/.test(v) && v.length < 4) { sugQuery = v; showSug([], { loading: 'PLZ vollständig eingeben (4 Ziffern Österreich/Schweiz, 5 Ziffern Deutschland)', noMore: true }); return; }
+  sugT = setTimeout(() => runSearch(v), pq.plz ? 450 : 280);
 });
-function pick(i) { const r = sugItems[i]; if (!r) return; sug.classList.remove('open'); q.value = ''; q.blur(); loadLocation({ name: r.name, sub: r.sub, lat: r.lat, lon: r.lon, cc: r.cc }); }
-sug.onclick = e => { const b = e.target.closest('button[data-i]'); if (b) pick(+b.dataset.i); };
+function pick(i) {
+  const r = sugItems[i]; if (!r) return;
+  sug.classList.remove('open'); q.value = ''; q.blur();
+  const sub = [r.plz, r.region && r.region !== r.name ? r.region : '', r.state, CC_NAME[r.cc] || r.country].filter(Boolean).join(', ');
+  loadLocation({ name: r.name, sub, lat: r.lat, lon: r.lon, cc: r.cc });
+}
+sug.onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.more) searchMore(); else if (b.dataset.i != null) pick(+b.dataset.i);
+};
 q.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !sug.classList.contains('open') && q.value.trim().length >= 2) { e.preventDefault(); clearTimeout(sugT); runSearch(q.value.trim()); return; }
   if (!sug.classList.contains('open')) return;
-  const n = sugItems.length;
+  const btns = [...sug.querySelectorAll('button:not([disabled])')], n = btns.length;
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!n) return;
     e.preventDefault(); sugActive = (sugActive + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
-    [...sug.children].forEach((b, i) => b.classList.toggle('active', i === sugActive));
-  } else if (e.key === 'Enter') { e.preventDefault(); pick(sugActive >= 0 ? sugActive : 0); }
+    btns.forEach((b, i) => b.classList.toggle('active', i === sugActive));
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const b = sugActive >= 0 ? btns[sugActive] : (sugItems.length ? sug.querySelector('button[data-i]') : sug.querySelector('[data-more]'));
+    if (b) b.click();
+  }
   else if (e.key === 'Escape') sug.classList.remove('open');
 });
 document.addEventListener('click', e => { if (!e.target.closest('.search-row')) sug.classList.remove('open'); });
@@ -517,7 +676,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#mapModal
 function setTabs() { document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === state.view)); }
 $('#tabs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
-  state.view = b.dataset.v; state.sel = null; store.set('view', state.view); setTabs(); render();
+  state.view = b.dataset.v; state.sel = null; store.set('view', state.view); setTabs(); render(); renderHeader();
 };
 
 /* ---------- Hilfsfunktionen Darstellung ---------- */
@@ -885,11 +1044,150 @@ function radarPlay(on) {
   }, 500);
 }
 
+/* ---------- Favoriten-Seite ---------- */
+let favWx = { k: '', at: 0, list: null }, favEdit = false;
+const favKeyAll = () => favs.map(key).join(';');
+async function loadFavWeather(force) {
+  const k = favKeyAll();
+  if (!favs.length || (!force && favWx.k === k && Date.now() - favWx.at < 10 * 60000)) return;
+  favWx = { k, at: Date.now(), list: null, loading: true };
+  try {
+    const j = await getJSON(API.forecast + '?' + qs({
+      latitude: favs.map(f => f.lat.toFixed(4)).join(','), longitude: favs.map(f => f.lon.toFixed(4)).join(','),
+      timezone: 'auto', forecast_days: 1,
+      current: 'temperature_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
+      daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum,rain_sum,showers_sum,snowfall_sum,precipitation_probability_max,sunshine_duration'
+    }));
+    if (favWx.k !== k) return;
+    const arr = Array.isArray(j) ? j : [j];
+    favWx.list = {}; favs.forEach((f, i) => { if (arr[i]) favWx.list[key(f)] = arr[i]; });
+  } catch (e) { if (favWx.k === k) favWx.err = true; }
+  favWx.loading = false;
+  if (state.view === 'favs') render();
+}
+/* Farbe des Balkens nach Temperatur (blau = kalt, rot = warm) */
+const tempColor = t => t == null ? '#ccd' : t <= -10 ? '#5b6ee1' : t <= 0 ? '#3d8ce0' : t <= 10 ? '#45b0c8' : t <= 20 ? '#8cc63f' : t <= 28 ? '#f2b134' : '#e1462f';
+function favRow(f, i) {
+  const w = favWx.list && favWx.list[key(f)], C = w && w.current, D = w && w.daily;
+  const cur = state.loc && key(state.loc) === key(f);
+  let meta = '';
+  if (C && D) {
+    const rain = (D.rain_sum?.[0] || 0) + (D.showers_sum?.[0] || 0), snow = D.snowfall_sum?.[0] || 0, prob = D.precipitation_probability_max?.[0];
+    const sun = D.sunshine_duration?.[0];
+    meta = `<span>${arrow(C.wind_direction_10m)} ${dirTxt(C.wind_direction_10m)} ${r0(C.wind_speed_10m)} km/h${C.wind_gusts_10m >= 50 ? ` · Böen ${r0(C.wind_gusts_10m)}` : ''}</span>`
+      + (snow >= 0.1 ? `<span class="snow">❄ ${String(Math.round(snow * 10) / 10).replace('.', ',')} cm Schnee</span>` : '')
+      + (rain >= 0.1 ? `<span class="rain">💧 ${mm(rain)} Regen</span>` : '')
+      + (rain < 0.1 && snow < 0.1 ? `<span class="rain">💧 kein Niederschlag</span>` : '')
+      + (prob != null ? `<span class="rain">☂ ${prob} %</span>` : '')
+      + (sun != null ? `<span class="sun">☀ ${(sun / 3600).toFixed(1).replace('.', ',')} h Sonne</span>` : '');
+  } else meta = `<span>${favWx.loading ? 'Wetter wird geladen …' : favWx.err ? 'Wetter nicht verfügbar' : ''}</span>`;
+  return `<div class="fbar ${cur ? 'cur' : ''}" data-open="${i}" style="border-left-color:${tempColor(C && C.temperature_2m)}">
+    <div>${C ? icon(C.weather_code, C.is_day, 50) : icon(3, 1, 50).replace('<svg', '<svg style="opacity:.25"')}</div>
+    <div class="fn"><b>${esc(f.name)}</b><small>${C ? esc(desc(C.weather_code, C.is_day)) + ' · ' : ''}${esc(f.sub || '')}</small></div>
+    <div class="ft">${C ? r0(C.temperature_2m) + '°' : '–'}${D ? `<small><span style="color:var(--max)">${r0(D.temperature_2m_max[0])}°</span> / <span style="color:var(--min)">${r0(D.temperature_2m_min[0])}°</span></small>` : ''}</div>
+    <div class="fm">${meta}</div>
+    ${favEdit ? `<div class="fa">
+      <button data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="nach oben">▲</button>
+      <button data-down="${i}" ${i === favs.length - 1 ? 'disabled' : ''} aria-label="nach unten">▼</button>
+      <button data-ren="${i}">✎ Umbenennen</button>
+      <button class="del" data-del="${i}" aria-label="löschen">🗑</button></div>` : ''}
+  </div>`;
+}
+function viewFavs() {
+  loadFavWeather();
+  const saved = store.get('favsBackupAt', 0);
+  const canAdd = state.loc && !favs.some(f => key(f) === key(state.loc));
+  return `<div class="card">
+    <h2>Meine Favoriten <span>${favs.length} ${favs.length === 1 ? 'Ort' : 'Orte'}</span></h2>
+    ${favs.length ? favs.map(favRow).join('') : `<div class="empty-favs">Noch keine Favoriten.<br>Ort suchen und oben auf den ☆ Stern tippen.</div>`}
+    <div class="tools-row">
+      ${canAdd ? `<button class="btn2" data-act="add">＋ „${esc(state.loc.name)}“ hinzufügen</button>` : ''}
+      ${favs.length ? `<button class="btn2 ${favEdit ? 'on' : ''}" data-act="edit">${favEdit ? '✓ Fertig' : '✎ Bearbeiten'}</button>
+      <button class="btn2" data-act="reload">↻ Aktualisieren</button>` : ''}
+    </div>
+  </div>
+  <div class="card">
+    <h2>Sichern &amp; Wiederherstellen <span>${saved ? 'zuletzt gesichert: ' + new Date(saved).toLocaleDateString('de-AT') : 'noch nicht gesichert'}</span></h2>
+    <div class="pad" style="padding-bottom:0;font-size:14px;color:var(--muted)">Die Favoriten bleiben bei Updates der App erhalten, solange sie unter derselben Adresse geöffnet wird. Beim Löschen der Browserdaten, bei einem neuen Gerät oder einer anderen Adresse gehen sie verloren – dafür hier sichern:</div>
+    <div class="tools-row">
+      <button class="btn2" data-act="export" ${favs.length ? '' : 'disabled'}>⬇ Als Datei sichern</button>
+      <button class="btn2" data-act="import">⬆ Aus Datei wiederherstellen</button>
+      <button class="btn2" data-act="link" ${favs.length ? '' : 'disabled'}>🔗 Sicherungs-Link kopieren</button>
+    </div>
+    <input type="file" id="favFile" accept=".json,application/json" hidden>
+  </div>`;
+}
+/* Sicherung: JSON-Datei bzw. Link mit den Favoriten im Adress-Anhang (#favs=…) */
+const favExport = () => ({ format: 'wetter-heute-favoriten', version: 1, exported: new Date().toISOString(),
+  favorites: favs.map(f => ({ name: f.name, sub: f.sub || '', lat: +f.lat.toFixed(5), lon: +f.lon.toFixed(5), cc: f.cc || '' })) });
+function mergeFavs(list, source) {
+  const valid = (Array.isArray(list) ? list : []).filter(f => f && typeof f.name === 'string' && isFinite(f.lat) && isFinite(f.lon) && Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180)
+    .map(f => ({ name: f.name.slice(0, 80), sub: String(f.sub || '').slice(0, 120), lat: +f.lat, lon: +f.lon, cc: String(f.cc || '').slice(0, 2).toUpperCase() }));
+  if (!valid.length) { toast('Keine gültigen Favoriten in ' + source + ' gefunden'); return; }
+  let added = 0;
+  valid.forEach(f => { if (!favs.some(g => key(g) === key(f))) { favs.push(f); added++; } });
+  saveFavs(); favWx.k = '';
+  toast(added ? added + (added === 1 ? ' Ort' : ' Orte') + ' wiederhergestellt' : 'Alle Orte waren schon vorhanden');
+  if (state.view === 'favs') render();
+}
+const b64e = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64d = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
+async function favAction(act) {
+  if (act === 'add' && state.loc) { favs.push({ name: state.loc.name, sub: state.loc.sub, lat: state.loc.lat, lon: state.loc.lon, cc: state.loc.cc }); saveFavs(); favWx.k = ''; render(); }
+  else if (act === 'edit') { favEdit = !favEdit; render(); }
+  else if (act === 'reload') { loadFavWeather(true); render(); }
+  else if (act === 'export') {
+    const blob = new Blob([JSON.stringify(favExport(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'wetter-favoriten-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    store.set('favsBackupAt', Date.now()); toast('Favoriten als Datei gesichert'); render();
+  } else if (act === 'import') $('#favFile').click();
+  else if (act === 'link') {
+    const short = favs.map(f => [f.name, +f.lat.toFixed(4), +f.lon.toFixed(4), f.cc || '', f.sub || '']);
+    const url = location.href.split('#')[0] + '#favs=' + b64e(JSON.stringify(short));
+    try { await navigator.clipboard.writeText(url); store.set('favsBackupAt', Date.now()); toast('Link kopiert – als Lesezeichen oder Notiz aufbewahren'); render(); }
+    catch (e) { prompt('Diesen Link kopieren und aufbewahren:', url); store.set('favsBackupAt', Date.now()); }
+  }
+}
+function favMove(i, d) { const j = i + d; if (j < 0 || j >= favs.length) return; [favs[i], favs[j]] = [favs[j], favs[i]]; saveFavs(); render(); }
+$('#main').addEventListener('change', e => {
+  if (e.target.id !== 'favFile' || !e.target.files[0]) return;
+  const f = e.target.files[0], rd = new FileReader();
+  rd.onload = () => { try { const j = JSON.parse(rd.result); mergeFavs(j.favorites || j, 'der Datei'); } catch (err) { toast('Datei konnte nicht gelesen werden'); } };
+  rd.readAsText(f);
+});
+function favClick(e) {
+  const b = e.target.closest('button');
+  if (b) {
+    const d = b.dataset;
+    if (d.act) { favAction(d.act); return true; }
+    if (d.up != null) { favMove(+d.up, -1); return true; }
+    if (d.down != null) { favMove(+d.down, 1); return true; }
+    if (d.ren != null) { const f = favs[+d.ren], n = prompt('Neuer Name für „' + f.name + '“:', f.name); if (n && n.trim()) { f.name = n.trim().slice(0, 80); saveFavs(); render(); } return true; }
+    if (d.del != null) { const f = favs[+d.del]; if (confirm('„' + f.name + '“ aus den Favoriten löschen?')) { favs.splice(+d.del, 1); saveFavs(); favWx.k = favKeyAll(); render(); } return true; }
+  }
+  const row = e.target.closest('[data-open]');
+  if (row && !favEdit) { openFav(+row.dataset.open); return true; }
+  return false;
+}
+window.addEventListener('hashchange', () => importFromHash());
+/* Favoriten aus einem Sicherungs-Link übernehmen */
+function importFromHash() {
+  const m = location.hash.match(/^#favs=([A-Za-z0-9_-]+)$/); if (!m) return;
+  history.replaceState(null, '', location.href.split('#')[0]);
+  try {
+    const list = JSON.parse(b64d(m[1])).map(a => ({ name: a[0], lat: a[1], lon: a[2], cc: a[3], sub: a[4] }));
+    if (confirm(list.length + (list.length === 1 ? ' Favorit' : ' Favoriten') + ' aus dem Sicherungs-Link übernehmen?')) mergeFavs(list, 'dem Link');
+  } catch (e) { toast('Sicherungs-Link ist ungültig'); }
+}
+
 function render() {
   setTabs();
   destroyRadar();
-  if (!state.data) return;
   const v = state.view;
+  if (v === 'favs') { $('#main').innerHTML = viewFavs(); renderHeader(); return; }
+  if (!state.data) return;
   try {
     $('#main').innerHTML = v === '3' ? view3() : v === '7' ? view7() : v === '21' ? view21() : v === 'radar' ? viewRadar() : viewToday();
     if (v === 'radar') initRadar();
@@ -899,6 +1197,7 @@ function render() {
   }
 }
 $('#main').onclick = e => {
+  if (state.view === 'favs') { favClick(e); return; }
   const t = e.target.closest('[data-day]'); if (!t) return;
   const i = +t.dataset.day;
   state.sel = (state.view === '21' && state.sel === i) ? null : i;
@@ -912,7 +1211,9 @@ document.addEventListener('visibilitychange', () => {
 
 /* ---------- Start ---------- */
 (async function init() {
+  if (state.view === 'favs') state.view = 'today';
   setTabs();
+  importFromHash();
   const last = store.get('lastLoc', null);
   if (last && typeof last.lat === 'number') { loadLocation(last); return; }
   if (favs.length) { loadLocation(favs[0]); return; }
