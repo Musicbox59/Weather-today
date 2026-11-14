@@ -3,6 +3,7 @@
 Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anmeldung, ohne Werbung, ohne API-Schlüssel.
 
 ## Funktionen
+- **Einstellungen (⚙)**: Einheiten wählbar – Temperatur °C/°F, Wind km/h, m/s, mph, Knoten oder Beaufort, Niederschlag mm/cm oder Zoll, Luftdruck hPa, inHg oder mmHg, Uhrzeit 24 h oder 12 h; Schnellauswahl Metrisch / Imperial
 - **Deutsch / Englisch** – umschaltbar über die Fahnen oben (🇦🇹 DE / 🇬🇧 EN); ohne Auswahl richtet sich die Sprache nach dem Browser
 - **Standort** per GPS des Smartphones, per **Ortssuche** (Name oder PLZ) oder per **Punkt auf der Karte**
 - **Ortssuche** nach Name oder Postleitzahl – auch österreichische PLZ (4-stellig), Ortsteile und Weiler; Treffer aus Österreich, Deutschland und der Schweiz zuerst

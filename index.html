@@ -28,8 +28,19 @@
   .icon-btn:hover{background:rgba(255,255,255,.15)}
   .icon-btn svg{width:24px;height:24px}
   .lang{display:flex;background:rgba(255,255,255,.16);border-radius:16px;padding:2px;flex:none}
+  #setBtn.on{background:#ffc107;color:#3b2a00}
   .lang button{display:flex;align-items:center;gap:4px;height:30px;padding:0 8px;border-radius:14px;font-size:12px;font-weight:700;color:#fff;opacity:.75}
   .lang button.on{background:#fff;color:var(--blue);opacity:1}
+  .set-row{display:grid;grid-template-columns:130px 1fr;align-items:center;gap:8px 12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .set-row:last-child{border-bottom:0}
+  .set-row > b{font-size:14px}
+  .set-row > b small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+  .opts{display:flex;flex-wrap:wrap;gap:6px}
+  .opts button{height:36px;min-width:52px;padding:0 12px;border-radius:18px;background:#eef2f6;font-weight:600;font-size:14px;color:#3b4a5a}
+  .opts button.on{background:var(--blue);color:#fff}
+  .preview{padding:12px 14px;font-size:14px;color:var(--muted);background:#f6f9fc;border-top:1px solid var(--line)}
+  .preview b{color:var(--text)}
+  @media (max-width:420px){.set-row{grid-template-columns:1fr}}
   .lang svg{width:20px;height:14px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.15);display:block}
   .search-row{display:flex;gap:8px;margin-top:8px;position:relative}
   .search{flex:1;display:flex;align-items:center;background:#fff;border-radius:22px;padding:0 6px 0 14px;height:44px;min-width:0}
@@ -238,9 +249,12 @@
     <div class="loc-row">
       <div class="loc-name" id="locName">Wetter<small id="locSub">…</small></div>
       <div class="lang" id="langSw" role="group" aria-label="Sprache / Language">
-        <button data-lang="de" title="Deutsch"><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#ed2939"/><rect y="6.67" width="30" height="6.67" fill="#fff"/></svg>DE</button>
-        <button data-lang="en" title="English"><svg viewBox="0 0 60 40"><clipPath id="ukc"><rect width="60" height="40"/></clipPath><g clip-path="url(#ukc)"><rect width="60" height="40" fill="#012169"/><path d="M0,0 60,40M60,0 0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 60,40M60,0 0,40" stroke="#c8102e" stroke-width="3"/><path d="M30,0V40M0,20H60" stroke="#fff" stroke-width="12"/><path d="M30,0V40M0,20H60" stroke="#c8102e" stroke-width="7"/></g></svg>EN</button>
+        <button data-lang="de" title="Deutsch"><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#ed2939"/><rect y="6.67" width="30" height="6.67" fill="#fff"/></svg><span class="hide-sm">DE</span></button>
+        <button data-lang="en" title="English"><svg viewBox="0 0 60 40"><clipPath id="ukc"><rect width="60" height="40"/></clipPath><g clip-path="url(#ukc)"><rect width="60" height="40" fill="#012169"/><path d="M0,0 60,40M60,0 0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 60,40M60,0 0,40" stroke="#c8102e" stroke-width="3"/><path d="M30,0V40M0,20H60" stroke="#fff" stroke-width="12"/><path d="M30,0V40M0,20H60" stroke="#c8102e" stroke-width="7"/></g></svg><span class="hide-sm">EN</span></button>
       </div>
+      <button class="icon-btn" id="setBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
       <button class="icon-btn" id="favBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
       </button>
@@ -320,6 +334,7 @@ function applyStatic() {
   document.getElementById('mapModal').setAttribute('aria-label', tr('Karte', 'Map'));
   document.getElementById('mapClose').setAttribute('aria-label', tr('Schließen', 'Close'));
   document.getElementById('pollenSheet').setAttribute('aria-label', tr('Pollenbelastung', 'Pollen levels'));
+  const sb = document.getElementById('setBtn'); sb.title = tr('Einstellungen (Einheiten)', 'Settings (units)'); sb.setAttribute('aria-label', sb.title);
   const mi = document.getElementById('mapInfo'); if (!mi.dataset.picked) mi.innerHTML = `<b>${tr('Kein Punkt gewählt', 'No point selected')}</b><small>${tr('Tippe auf die Karte', 'Tap the map')}</small>`;
   document.querySelectorAll('#langSw button').forEach(b => { b.classList.toggle('on', b.dataset.lang === LANG); b.setAttribute('aria-pressed', b.dataset.lang === LANG); });
   document.getElementById('foot').innerHTML = tr(
@@ -407,7 +422,37 @@ const arrow = deg => `<svg width="14" height="14" viewBox="0 0 24 24" style="tra
 const DIRS_DE = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'], DIRS_EN = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const dirTxt = deg => (LANG === 'en' ? DIRS_EN : DIRS_DE)[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
 const r0 = v => (v == null || isNaN(v)) ? '–' : Math.round(v);
-const mm = v => v == null ? '–' : (v < 0.05 ? '0' : v < 10 ? dec(v) : Math.round(v)) + ' mm';
+/* ---------- Einheiten (Einstellungen) ----------
+   Die Daten werden immer metrisch geladen und erst bei der Anzeige umgerechnet. */
+const UNITS_DEFAULT = { temp: 'c', wind: 'kmh', precip: 'mm', pressure: 'hpa', time: '24' };
+let U = Object.assign({}, UNITS_DEFAULT, store.get('units', {}));
+const cT = v => v == null || isNaN(v) ? null : U.temp === 'f' ? v * 9 / 5 + 32 : v;
+const tp = v => r0(cT(v));
+const BFT = [1, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118];   // Beaufort-Grenzen in km/h
+const bft = v => { let b = 0; while (b < 12 && v >= BFT[b]) b++; return b; };
+const wUnit = () => ({ kmh: 'km/h', ms: 'm/s', mph: 'mph', kn: 'kn', bft: 'Bft' })[U.wind];
+const wv = v => {
+  if (v == null || isNaN(v)) return '–';
+  if (U.wind === 'bft') return bft(v);
+  if (U.wind === 'ms') { const x = v / 3.6; return x < 10 ? dec(x) : Math.round(x); }
+  return Math.round(U.wind === 'mph' ? v / 1.609344 : U.wind === 'kn' ? v / 1.852 : v);
+};
+const ws = v => wv(v) + ' ' + wUnit();
+const mm = v => {
+  if (v == null) return '–';
+  if (U.precip === 'in') { const x = v / 25.4; return (x < 0.005 ? '0' : dec(x, 2)) + ' in'; }
+  return (v < 0.05 ? '0' : v < 10 ? dec(v) : Math.round(v)) + ' mm';
+};
+const snowTxt = cm => U.precip === 'in' ? dec(cm / 2.54) + ' in' : dec(cm) + ' cm';
+const pres = v => v == null ? '–' : U.pressure === 'inhg' ? dec(v * 0.0295300, 2) + ' inHg' : U.pressure === 'mmhg' ? Math.round(v * 0.750062) + ' mmHg' : Math.round(v) + ' hPa';
+/* Uhrzeit "HH:MM" -> 24 h bzw. 12 h (AM/PM) */
+const fmtTime = hm => {
+  if (!hm || hm.length < 5) return '–';
+  if (U.time !== '12') return hm;
+  const h = +hm.slice(0, 2); return (h % 12 || 12) + ':' + hm.slice(3, 5) + (h < 12 ? ' AM' : ' PM');
+};
+const withUhr = hm => U.time === '12' ? fmtTime(hm) : tr(hm + ' Uhr', hm);
+const hourLbl = t => { const h = +t.slice(11, 13); return U.time === '12' ? (h % 12 || 12) + (h < 12 ? ' AM' : ' PM') : tr(t.slice(11, 13) + ' Uhr', t.slice(11, 16)); };
 
 /* ---------- Datum ---------- */
 const WD_DE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WD_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -416,7 +461,7 @@ const MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const pd = s => { const [y, m, d] = s.slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
 const dshort = s => { const d = pd(s); return LANG === 'en' ? d.getDate() + ' ' + MON_EN[d.getMonth()] : String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.'; };
 const dayName = (s, i, long) => i === 0 ? tr('Heute', 'Today') : i === 1 ? tr('Morgen', 'Tomorrow') : (long ? (LANG === 'en' ? WDL_EN : WDL_DE) : (LANG === 'en' ? WD_EN : WD_DE))[pd(s).getDay()];
-const hhmm = s => s ? s.slice(11, 16) : '–';
+const hhmm = s => s ? fmtTime(s.slice(11, 16)) : '–';
 
 /* ---------- Zustand ---------- */
 let state = { loc: null, data: null, trend: null, trendFor: null, view: store.get('view', 'today'), sel: null };
@@ -427,7 +472,7 @@ const key = l => l.lat.toFixed(3) + ',' + l.lon.toFixed(3);
 
 /* ---------- Laden ---------- */
 async function loadLocation(loc) {
-  if (state.view === 'favs') state.view = state.prevView || 'today';
+  if (state.view === 'favs' || state.view === 'settings') state.view = state.prevView || 'today';
   state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null; state.radarSrc = null; state.pollen = null;
   store.set('lastLoc', loc);
   destroyRadar();
@@ -514,11 +559,7 @@ $('#favBtn').onclick = () => {
 };
 $('#favs').onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.mgr) {
-    if (state.view === 'favs') state.view = state.prevView || 'today';
-    else { state.prevView = state.view; state.view = 'favs'; }
-    render(); renderHeader(); window.scrollTo(0, 0);
-  }
+  if (b.dataset.mgr) togglePage('favs');
   else if (b.dataset.i != null) openFav(+b.dataset.i);
 };
 function openFav(i) { loadLocation(favs[i]); }
@@ -786,21 +827,21 @@ function segments(date) {
   });
 }
 function segsHTML(date) {
-  return `<div class="segs">${segments(date).map(s => s ? `<div><div class="lbl">${segLabel(s.lbl)}</div>${icon(s.code, s.day, 46)}<div class="t">${r0(s.t)}°</div>
+  return `<div class="segs">${segments(date).map(s => s ? `<div><div class="lbl">${segLabel(s.lbl)}</div>${icon(s.code, s.day, 46)}<div class="t">${tp(s.t)}°</div>
     <div class="r">${s.prob != null ? s.prob + ' %' : ''}${s.rain >= 0.1 ? ' · ' + mm(s.rain) : ''}</div>
-    <div class="w">${arrow(s.dir)} ${r0(s.wind)} km/h</div></div>` : '<div></div>').join('')}</div>`;
+    <div class="w">${arrow(s.dir)} ${ws(s.wind)}</div></div>` : '<div></div>').join('')}</div>`;
 }
 function dayCard(i, open) {
   const D = state.data.daily, date = D.time[i];
   return `<div class="card">
     <div class="day-head"><div class="d" style="display:flex;align-items:center;gap:8px">${polIcon(date, icon(D.weather_code[i], 1, 38))}<div>${dayName(date, i, true)}<span>${dshort(date)}</span></div></div>
-      <div class="maxmin"><b class="mx">${r0(D.temperature_2m_max[i])}°</b> / <b class="mn">${r0(D.temperature_2m_min[i])}°</b></div></div>
+      <div class="maxmin"><b class="mx">${tp(D.temperature_2m_max[i])}°</b> / <b class="mn">${tp(D.temperature_2m_min[i])}°</b></div></div>
     ${segsHTML(date)}
     <div class="day-foot">
       <span>${desc(D.weather_code[i])}</span>
       <span>${tr('Regen', 'Rain')} <b>${D.precipitation_probability_max[i] ?? '–'}&nbsp;%</b> · <b>${mm(D.precipitation_sum[i])}</b></span>
       <span>${tr('Sonne', 'Sun')} <b>${D.sunshine_duration[i] != null ? dec(D.sunshine_duration[i] / 3600) : '–'}&nbsp;h</b></span>
-      <span>Wind <b>${dirTxt(D.wind_direction_10m_dominant[i])} ${r0(D.wind_speed_10m_max[i])}</b>, ${tr('Böen', 'gusts')} <b>${r0(D.wind_gusts_10m_max[i])}&nbsp;km/h</b></span>
+      <span>Wind <b>${dirTxt(D.wind_direction_10m_dominant[i])} ${wv(D.wind_speed_10m_max[i])}</b>, ${tr('Böen', 'gusts')} <b>${ws(D.wind_gusts_10m_max[i])}</b></span>
       <span>☀︎ <b>${hhmm(D.sunrise[i])}</b> – <b>${hhmm(D.sunset[i])}</b></span>
       ${D.uv_index_max[i] != null ? `<span>UV <b>${r0(D.uv_index_max[i])}</b></span>` : ''}
     </div></div>`;
@@ -836,17 +877,17 @@ function viewToday() {
     <div class="now">
       ${polIcon(D.time[0], icon(C.weather_code, C.is_day, 92))}
       <div style="flex:1;min-width:0">
-        <div class="big">${r0(C.temperature_2m)}°</div>
+        <div class="big">${tp(C.temperature_2m)}°</div>
         <div class="desc">${desc(C.weather_code, C.is_day)}</div>
-        <div class="sub maxmin">${tr('Gefühlt', 'Feels like')} ${r0(C.apparent_temperature)}° · <b class="mx">${r0(D.temperature_2m_max[0])}°</b> / <b class="mn">${r0(D.temperature_2m_min[0])}°</b></div>
+        <div class="sub maxmin">${tr('Gefühlt', 'Feels like')} ${tp(C.apparent_temperature)}° · <b class="mx">${tp(D.temperature_2m_max[0])}°</b> / <b class="mn">${tp(D.temperature_2m_min[0])}°</b></div>
       </div>
     </div>
     <div class="details">
-      <div><small>Wind</small><b>${arrow(C.wind_direction_10m)} ${dirTxt(C.wind_direction_10m)} ${r0(C.wind_speed_10m)} km/h</b></div>
-      <div><small>${tr('Böen', 'Gusts')}</small><b>${r0(C.wind_gusts_10m)} km/h</b></div>
+      <div><small>Wind</small><b>${arrow(C.wind_direction_10m)} ${dirTxt(C.wind_direction_10m)} ${ws(C.wind_speed_10m)}</b></div>
+      <div><small>${tr('Böen', 'Gusts')}</small><b>${ws(C.wind_gusts_10m)}</b></div>
       <div><small>${tr('Regenrisiko heute', 'Chance of rain today')}</small><b style="color:var(--rain)">${D.precipitation_probability_max[0] ?? '–'} % · ${mm(D.precipitation_sum[0])}</b></div>
       <div><small>${tr('Luftfeuchte', 'Humidity')}</small><b>${r0(C.relative_humidity_2m)} %</b></div>
-      <div><small>${tr('Luftdruck', 'Pressure')}</small><b>${r0(C.pressure_msl)} hPa</b></div>
+      <div><small>${tr('Luftdruck', 'Pressure')}</small><b>${pres(C.pressure_msl)}</b></div>
       <div><small>${tr('Sonnenstunden', 'Sunshine')}</small><b>${sun}</b></div>
       <div><small>${tr('Sonnenauf-/untergang', 'Sunrise / sunset')}</small><b>${hhmm(D.sunrise[0])} / ${hhmm(D.sunset[0])}</b></div>
       <div><small>${tr('UV-Index max.', 'Max. UV index')}</small><b>${r0(D.uv_index_max[0])}</b></div>
@@ -856,14 +897,14 @@ function viewToday() {
   <div class="card"><h2>${tr('Tagesverlauf heute', 'Today at a glance')} <span>${dshort(D.time[0])}</span></h2>${segsHTML(D.time[0])}</div>
   <div class="card"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
-      <div class="hrow time">${idx.map((i, k) => cell(k === 0 ? tr('Jetzt', 'Now') : tr(H.time[i].slice(11, 13) + ' Uhr', H.time[i].slice(11, 16)), i, k)).join('')}</div>
+      <div class="hrow time">${idx.map((i, k) => cell(k === 0 ? tr('Jetzt', 'Now') : hourLbl(H.time[i]), i, k)).join('')}</div>
       <div class="hrow">${idx.map((i, k) => cell(icon(H.weather_code[i], H.is_day[i], 38), i, k)).join('')}</div>
-      ${chart([{ v: idx.map(i => H.temperature_2m[i]), color: '#e0712c' }], idx.length, W, 74)}
+      ${chart([{ v: idx.map(i => cT(H.temperature_2m[i])), color: '#e0712c' }], idx.length, W, 74)}
       <div class="hrow rain">${idx.map((i, k) => cell((H.precipitation_probability[i] ?? '–') + ' %' + (H.precipitation[i] >= 0.1 ? '<br>' + mm(H.precipitation[i]) : ''), i, k)).join('')}</div>
-      <div class="hrow wind">${idx.map((i, k) => cell(arrow(H.wind_direction_10m[i]) + '<br>' + r0(H.wind_speed_10m[i]), i, k)).join('')}</div>
+      <div class="hrow wind">${idx.map((i, k) => cell(arrow(H.wind_direction_10m[i]) + '<br>' + wv(H.wind_speed_10m[i]), i, k)).join('')}</div>
     </div></div>
   </div>
-  <p class="note">${tr('Stand: ' + hhmm(C.time) + ' Uhr (Ortszeit) · Wind in km/h', 'Updated: ' + hhmm(C.time) + ' (local time) · wind in km/h')}</p>`;
+  <p class="note">${tr('Stand: ', 'Updated: ') + withUhr(C.time.slice(11, 16)) + tr(' (Ortszeit) · Wind in ', ' (local time) · wind in ') + wUnit()}</p>`;
 }
 
 function view3() { return [0, 1, 2].map(i => dayCard(i)).join(''); }
@@ -876,12 +917,12 @@ function view7() {
       <div class="hrow">${ix.map(i => `<div class="hcell daytile ${i === sel ? 'sel' : ''}" data-day="${i}" style="width:${W}px">
         <div class="wd">${dayName(D.time[i], i)}</div><div class="dt">${dshort(D.time[i])}</div>
         ${polIcon(D.time[i], icon(D.weather_code[i], 1, 46))}
-        <div class="mx">${r0(D.temperature_2m_max[i])}°</div><div class="mn">${r0(D.temperature_2m_min[i])}°</div>
+        <div class="mx">${tp(D.temperature_2m_max[i])}°</div><div class="mn">${tp(D.temperature_2m_min[i])}°</div>
         <div class="r">💧${D.precipitation_probability_max[i] ?? '–'}&nbsp;%<br>${mm(D.precipitation_sum[i])}</div>
         <div class="s">☀︎ ${D.sunshine_duration[i] != null ? Math.round(D.sunshine_duration[i] / 3600) : '–'}&nbsp;h</div>
-        <div class="r" style="color:var(--muted)">${arrow(D.wind_direction_10m_dominant[i])} ${r0(D.wind_speed_10m_max[i])}</div>
+        <div class="r" style="color:var(--muted)">${arrow(D.wind_direction_10m_dominant[i])} ${wv(D.wind_speed_10m_max[i])}</div>
       </div>`).join('')}</div>
-      ${chart([{ v: ix.map(i => D.temperature_2m_max[i]), color: '#d7262f' }, { v: ix.map(i => D.temperature_2m_min[i]), color: '#1a6fc9', below: true }], n, W, 120)}
+      ${chart([{ v: ix.map(i => cT(D.temperature_2m_max[i])), color: '#d7262f' }, { v: ix.map(i => cT(D.temperature_2m_min[i])), color: '#1a6fc9', below: true }], n, W, 120)}
     </div></div></div>
     <div class="detail-slot">${dayCard(sel)}</div>`;
 }
@@ -901,7 +942,7 @@ function view21() {
     return `<div class="row ${r.trend ? 'trend' : ''} ${sel === r.i ? 'sel' : ''}" ${r.trend ? '' : `data-day="${r.i}"`}>
       <div class="wd">${dayName(r.date, r.i)}<small>${dshort(r.date)}</small>${r.trend ? '<span class="badge">TREND</span>' : ''}</div>
       ${polIcon(r.date, icon(r.code, 1, 40))}
-      <div class="rng"><span class="mn">${r0(r.tmin)}°</span><span class="bar"><i style="left:${l.toFixed(1)}%;width:${w.toFixed(1)}%"></i></span><span class="mx">${r0(r.tmax)}°</span></div>
+      <div class="rng"><span class="mn">${tp(r.tmin)}°</span><span class="bar"><i style="left:${l.toFixed(1)}%;width:${w.toFixed(1)}%"></i></span><span class="mx">${tp(r.tmax)}°</span></div>
       <div class="rr">💧${r.prob ?? '–'}&nbsp;%<br>${mm(r.rain)}</div>
     </div>${sel === r.i ? `<div style="padding:0 8px 8px;background:var(--sel)">${dayCard(r.i)}</div>` : ''}`;
   };
@@ -1079,7 +1120,7 @@ async function loadRadarFrames() {
 }
 /* „Jetzt“-Markierung unter dem Regler; am Rand nach innen ausrichten, damit nichts abgeschnitten wird */
 const nowTick = f => `<span class="now" style="left:calc(8px + (100% - 16px) * ${f});transform:translateX(${f > .85 ? '-100%' : f < .15 ? '0' : '-50%'})">${f > .85 ? tr('Jetzt', 'Now') + ' ▲' : '▲ ' + tr('Jetzt', 'Now')}</span>`;
-const clock = t => { const d = new Date(t * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const clock = t => { const d = new Date(t * 1000); return fmtTime(String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')); };
 function radarLayer(f) {
   const r = radar;
   if (!r.layers[f.key]) {
@@ -1107,7 +1148,7 @@ function radarShow(i) {
   const diff = Math.round((f.time - r.frames[r.nowIdx].time) / 60);
   const lbl = diff === 0 ? tr('Jetzt', 'Now') : f.fc ? tr('Prognose +' + diff + ' Min', 'Forecast +' + diff + ' min') : tr('vor ' + (-diff) + ' Min', (-diff) + ' min ago');
   const el = $('#rTime'); el.classList.toggle('fc', f.fc);
-  el.innerHTML = `${clock(f.time)}${tr(' Uhr', '')}<small>${lbl}</small>`;
+  el.innerHTML = `${U.time === '12' ? clock(f.time) : clock(f.time) + tr(' Uhr', '')}<small>${lbl}</small>`;
 }
 function radarPlay(on) {
   const r = radar; if (!r) return;
@@ -1155,8 +1196,8 @@ function favRow(f, i) {
   if (C && D) {
     const rain = (D.rain_sum?.[0] || 0) + (D.showers_sum?.[0] || 0), snow = D.snowfall_sum?.[0] || 0, prob = D.precipitation_probability_max?.[0];
     const sun = D.sunshine_duration?.[0];
-    meta = `<span>${arrow(C.wind_direction_10m)} ${dirTxt(C.wind_direction_10m)} ${r0(C.wind_speed_10m)} km/h${C.wind_gusts_10m >= 50 ? ` · ${tr('Böen', 'gusts')} ${r0(C.wind_gusts_10m)}` : ''}</span>`
-      + (snow >= 0.1 ? `<span class="snow">❄ ${dec(snow)} cm ${tr('Schnee', 'snow')}</span>` : '')
+    meta = `<span>${arrow(C.wind_direction_10m)} ${dirTxt(C.wind_direction_10m)} ${ws(C.wind_speed_10m)}${C.wind_gusts_10m >= 50 ? ` · ${tr('Böen', 'gusts')} ${wv(C.wind_gusts_10m)}` : ''}</span>`
+      + (snow >= 0.1 ? `<span class="snow">❄ ${snowTxt(snow)} ${tr('Schnee', 'snow')}</span>` : '')
       + (rain >= 0.1 ? `<span class="rain">💧 ${mm(rain)} ${tr('Regen', 'rain')}</span>` : '')
       + (rain < 0.1 && snow < 0.1 ? `<span class="rain">💧 ${tr('kein Niederschlag', 'no precipitation')}</span>` : '')
       + (prob != null ? `<span class="rain">☂ ${prob} %</span>` : '')
@@ -1165,7 +1206,7 @@ function favRow(f, i) {
   return `<div class="fbar ${cur ? 'cur' : ''}" data-open="${i}" style="border-left-color:${tempColor(C && C.temperature_2m)}">
     <div>${C ? icon(C.weather_code, C.is_day, 50) : icon(3, 1, 50).replace('<svg', '<svg style="opacity:.25"')}</div>
     <div class="fn"><b>${esc(f.name)}</b><small>${C ? esc(desc(C.weather_code, C.is_day)) + ' · ' : ''}${esc(f.sub || '')}</small></div>
-    <div class="ft">${C ? r0(C.temperature_2m) + '°' : '–'}${D ? `<small><span style="color:var(--max)">${r0(D.temperature_2m_max[0])}°</span> / <span style="color:var(--min)">${r0(D.temperature_2m_min[0])}°</span></small>` : ''}</div>
+    <div class="ft">${C ? tp(C.temperature_2m) + '°' : '–'}${D ? `<small><span style="color:var(--max)">${tp(D.temperature_2m_max[0])}°</span> / <span style="color:var(--min)">${tp(D.temperature_2m_min[0])}°</span></small>` : ''}</div>
     <div class="fm">${meta}</div>
     ${favEdit ? `<div class="fa">
       <button data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="${tr('nach oben', 'move up')}">▲</button>
@@ -1351,7 +1392,7 @@ function showPollen(date) {
     body = `<div class="pad" style="padding-bottom:6px">${tr('Gesamt', 'Overall')}: <span class="lv" style="background:${PL_COL[max]}">${plLv(max)}</span>${max === 0 ? tr(' – derzeit kein nennenswerter Pollenflug.', ' – no significant pollen at the moment.') : ''}</div>`
       + d.map(x => `<div class="prow"><div><b>${x.name}</b></div>
         <div class="bar"><i style="width:${x.lvl <= 0 ? 0 : x.lvl * 25}%;background:${PL_COL[x.lvl]}"></i></div>
-        <div class="val"><b style="color:${PL_COL[x.lvl]}">${plLv(x.lvl)}</b>${x.v >= 1 ? Math.round(x.v) + ' /m³' + (x.peak ? ' · ' + x.peak : '') : ''}</div></div>`).join('')
+        <div class="val"><b style="color:${PL_COL[x.lvl]}">${plLv(x.lvl)}</b>${x.v >= 1 ? Math.round(x.v) + ' /m³' + (x.peak ? ' · ' + fmtTime(x.peak) : '') : ''}</div></div>`).join('')
       + `<div class="ptips">${max >= 2 ? tr(`<b>Tipps bei Pollenallergie:</b><ul><li>Lüften in der Stadt eher frühmorgens, auf dem Land eher abends.</li><li>Nach dem Aufenthalt im Freien Haare waschen, Kleidung nicht im Schlafzimmer ablegen.</li><li>Regen wäscht Pollen vorübergehend aus der Luft.</li></ul>`,
           `<b>Tips for pollen allergy:</b><ul><li>In cities, air rooms early in the morning; in the countryside, rather in the evening.</li><li>Wash your hair after being outdoors and don't leave your clothes in the bedroom.</li><li>Rain temporarily washes pollen out of the air.</li></ul>`) : ''}
         ${tr('Werte: Tageshöchstwert in Pollen pro m³ Luft, mit Uhrzeit des Höchstwerts. Einstufung nach gängigen Richtwerten; Hasel ist nicht enthalten. Kein Ersatz für ärztlichen Rat.', 'Values: daily maximum in pollen grains per m³ of air, with the time of the peak. Levels based on common reference values; hazel is not included. Not a substitute for medical advice.')}</div>`;
@@ -1369,11 +1410,65 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('pol-ic')) { e.preventDefault(); showPollen(e.target.dataset.pollen); }
 });
 
+/* ---------- Einstellungen ---------- */
+const SET_OPTS = () => [
+  ['lang', tr('Sprache', 'Language'), '', [['de', 'Deutsch'], ['en', 'English']]],
+  ['temp', tr('Temperatur', 'Temperature'), '', [['c', '°C'], ['f', '°F']]],
+  ['wind', tr('Windgeschwindigkeit', 'Wind speed'), '', [['kmh', 'km/h'], ['ms', 'm/s'], ['mph', 'mph'], ['kn', tr('Knoten (kn)', 'Knots (kn)')], ['bft', 'Beaufort']]],
+  ['precip', tr('Niederschlag', 'Precipitation'), tr('Regen und Schnee', 'rain and snow'), [['mm', 'mm / cm'], ['in', tr('Zoll (in)', 'Inches (in)')]]],
+  ['pressure', tr('Luftdruck', 'Pressure'), '', [['hpa', 'hPa'], ['inhg', 'inHg'], ['mmhg', 'mmHg']]],
+  ['time', tr('Uhrzeit', 'Time format'), '', [['24', '24 h'], ['12', '12 h (AM/PM)']]]
+];
+function viewSettings() {
+  const cur = k => k === 'lang' ? LANG : U[k];
+  const rows = SET_OPTS().map(([k, label, hint, opts]) => `<div class="set-row"><b>${label}${hint ? `<small>${hint}</small>` : ''}</b>
+    <div class="opts" role="group" aria-label="${esc(label)}">${opts.map(([v, t]) => `<button data-set="${k}" data-val="${v}" class="${cur(k) === v ? 'on' : ''}" aria-pressed="${cur(k) === v}">${t}</button>`).join('')}</div></div>`).join('');
+  const isMetric = Object.keys(UNITS_DEFAULT).every(k => U[k] === UNITS_DEFAULT[k]);
+  const isImp = U.temp === 'f' && U.wind === 'mph' && U.precip === 'in' && U.pressure === 'inhg' && U.time === '12';
+  return `<div class="card">
+    <h2>⚙ ${tr('Einstellungen', 'Settings')} <span>${tr('auf diesem Gerät', 'on this device')}</span></h2>
+    ${rows}
+    <div class="preview">${tr('Beispiel', 'Example')}: <b>${tp(21)}°</b> · <b>${ws(14)}</b> · <b>${mm(1.2)}</b> · <b>${pres(1016)}</b> · <b>${fmtTime('13:45')}</b></div>
+  </div>
+  <div class="card"><h2>${tr('Schnellauswahl', 'Quick presets')}</h2>
+    <div class="tools-row">
+      <button class="btn2 ${isMetric ? 'on' : ''}" data-preset="metric">${tr('Metrisch (Standard)', 'Metric (default)')}</button>
+      <button class="btn2 ${isImp ? 'on' : ''}" data-preset="imperial">${tr('Imperial (USA)', 'Imperial (US)')}</button>
+    </div>
+  </div>`;
+}
+function setLang(l) {
+  if (l === LANG) return;
+  LANG = l; store.set('lang', LANG);
+  sug.classList.remove('open');
+  applyStatic(); renderHeader(); render();
+  if ($('#pollenSheet').classList.contains('open') && state.pollenDate) showPollen(state.pollenDate);
+}
+function settingsClick(e) {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.set) {
+    if (b.dataset.set === 'lang') { setLang(b.dataset.val); return; }
+    U[b.dataset.set] = b.dataset.val;
+  } else if (b.dataset.preset === 'metric') U = Object.assign({}, UNITS_DEFAULT);
+  else if (b.dataset.preset === 'imperial') U = { temp: 'f', wind: 'mph', precip: 'in', pressure: 'inhg', time: '12' };
+  else return;
+  store.set('units', U); render();
+}
+/* Seiten "Favoriten" und "Einstellungen" öffnen bzw. schließen (zurück zur vorherigen Ansicht) */
+function togglePage(page) {
+  if (state.view === page) state.view = state.prevView || 'today';
+  else { if (state.view !== 'favs' && state.view !== 'settings') state.prevView = state.view; state.view = page; }
+  render(); renderHeader(); window.scrollTo(0, 0);
+}
+$('#setBtn').onclick = () => togglePage('settings');
+
 function render() {
   setTabs();
+  $('#setBtn').classList.toggle('on', state.view === 'settings');
   destroyRadar();
   const v = state.view;
   if (v === 'favs') { $('#main').innerHTML = viewFavs(); renderHeader(); return; }
+  if (v === 'settings') { $('#main').innerHTML = viewSettings(); return; }
   if (!state.data) return;
   try {
     $('#main').innerHTML = v === '3' ? view3() : v === '7' ? view7() : v === '21' ? view21() : v === 'radar' ? viewRadar() : viewToday();
@@ -1385,6 +1480,7 @@ function render() {
 }
 $('#main').onclick = e => {
   if (state.view === 'favs') { favClick(e); return; }
+  if (state.view === 'settings') { settingsClick(e); return; }
   const pol = e.target.closest('[data-pollen]');
   if (pol) { e.stopPropagation(); showPollen(pol.dataset.pollen); return; }
   const t = e.target.closest('[data-day]'); if (!t) return;
@@ -1394,13 +1490,7 @@ $('#main').onclick = e => {
 };
 
 /* Sprache umschalten (Fahnen im Kopfbereich) */
-$('#langSw').onclick = e => {
-  const b = e.target.closest('button[data-lang]'); if (!b || b.dataset.lang === LANG) return;
-  LANG = b.dataset.lang; store.set('lang', LANG);
-  sug.classList.remove('open');
-  applyStatic(); renderHeader(); render();
-  if ($('#pollenSheet').classList.contains('open') && state.pollenDate) showPollen(state.pollenDate);
-};
+$('#langSw').onclick = e => { const b = e.target.closest('button[data-lang]'); if (b) setLang(b.dataset.lang); };
 
 /* Aktualisieren, wenn die App nach >15 Min wieder geöffnet wird */
 document.addEventListener('visibilitychange', () => {
@@ -1409,7 +1499,7 @@ document.addEventListener('visibilitychange', () => {
 
 /* ---------- Start ---------- */
 (async function init() {
-  if (state.view === 'favs') state.view = 'today';
+  if (state.view === 'favs' || state.view === 'settings') state.view = 'today';
   applyStatic();
   setTabs();
   importFromHash();
