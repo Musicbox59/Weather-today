@@ -8,6 +8,7 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 - **Favoriten** mit dem ☆-Stern speichern; eigene Seite „☰ Favoriten“: jeder Ort als Balken mit aktuellem Wetter-Symbol, Temperatur, Höchst-/Tiefstwert, Wind, Regen/Schnee und Sonnenstunden; sortieren, umbenennen, löschen
 - **Favoriten sichern**: als Datei (JSON) herunterladen und wiederherstellen oder als Sicherungs-Link (Lesezeichen) aufbewahren
 - Ansichten: **Heute** (aktuell, Tagesverlauf, stündlich), **3 Tage**, **7 Tage**, **21 Tage**, **Radar**
+- **Hinweis für Allergiker**: Pollenflug von heute auf der Startseite; Wetter-Symbol eines Tages antippen zeigt die Pollenbelastung (Erle, Birke, Gräser, Beifuß, Ambrosia, Olive) für diesen Tag – Europa, ca. 3 Tage voraus
 - **Niederschlagsradar**: in Deutschland automatisch das DWD-Radar (1 km), weltweit RainViewer – umschaltbar; animierte 2D-Karte (ca. letzte 2 Stunden + Kurzfrist-Prognose, falls verfügbar) mit Markierung der aktuellen Position, Zeitleiste und Play/Pause
 - Darstellung angelehnt an klassische Wetterportale: Symbole, rote Höchst-/blaue Tiefstwerte, Temperaturkurven, Regenwahrscheinlichkeit
 
@@ -16,6 +17,7 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 |---|---|
 | Vorhersage Tag 1–16 | [Open-Meteo](https://open-meteo.com) – Modelle u. a. DWD ICON, ECMWF, NOAA GFS |
 | Trend Tag 17–21 | Open-Meteo Ensemble-API, NOAA GEFS (Mittel aus 31 Läufen) |
+| Pollenvorhersage | Copernicus CAMS über Open-Meteo Air-Quality-API (Europa) |
 | Ortssuche | Open-Meteo Geocoding (GeoNames); Postleitzahlen, Ortsteile & Weiler über Nominatim / OpenStreetMap |
 | Ortsname zu GPS/Kartenpunkt | Nominatim / OpenStreetMap |
 | Niederschlagsradar Deutschland | [DWD GeoServer](https://maps.dwd.de) – WMS-Layer `dwd:Niederschlagsradar` |

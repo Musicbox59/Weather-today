@@ -155,6 +155,32 @@
 
   .detail-slot:empty{display:none}
 
+  /* Pollen / Allergiker */
+  .pol-ic{position:relative;display:inline-block;cursor:pointer;border-radius:10px;line-height:0}
+  .pol-ic:hover,.pol-ic:focus-visible{background:#eef6e8;outline:none}
+  .pol-ic .leaf{position:absolute;right:-3px;bottom:-2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px #fff;display:grid;place-items:center}
+  .pol-ic .leaf svg{width:15px;height:15px}
+  .allergy{display:flex;gap:12px;align-items:flex-start;padding:12px 14px}
+  .allergy .ico{font-size:24px;line-height:1}
+  .allergy b{display:block}
+  .allergy small{color:var(--muted);font-size:13px}
+  .lv{display:inline-block;border-radius:4px;padding:0 5px;font-size:12px;font-weight:700;color:#fff;margin:0 2px}
+  .sheet{position:fixed;inset:0;z-index:120;background:rgba(10,20,35,.45);display:none;align-items:flex-end;justify-content:center}
+  .sheet.open{display:flex}
+  .sheet .box{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:88vh;overflow-y:auto;padding:0 0 calc(14px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px rgba(0,0,0,.25)}
+  @media (min-width:600px){.sheet{align-items:center}.sheet .box{border-radius:16px}}
+  .sheet .hd{display:flex;align-items:center;gap:10px;padding:14px 8px 10px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff}
+  .sheet .hd div{flex:1;min-width:0}
+  .sheet .hd b{display:block;font-size:17px}
+  .sheet .hd small{color:var(--muted)}
+  .prow{display:grid;grid-template-columns:100px 1fr 96px;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--line);font-size:14px}
+  .prow .bar{height:10px;border-radius:5px;background:#eef2f6;overflow:hidden}
+  .prow .bar i{display:block;height:100%;border-radius:5px}
+  .prow .val{text-align:right;font-size:12px;color:var(--muted);line-height:1.2}
+  .prow .val b{display:block;font-size:13px}
+  .ptips{padding:10px 16px 0;font-size:13px;color:var(--muted)}
+  .ptips ul{margin:6px 0 8px;padding-left:18px}
+
   /* Niederschlagsradar */
   .radar{position:relative;isolation:isolate}
   #radarMap{height:min(64vh,560px);min-height:340px;background:#eef1f4}
@@ -240,6 +266,7 @@
 
 <footer class="wrap">
   Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (u.&nbsp;a. DWD ICON, ECMWF, NOAA GFS/GEFS) · CC BY 4.0<br>
+  Pollenvorhersage: Copernicus Atmosphere Monitoring Service (CAMS) über Open-Meteo · nur Europa<br>
   Niederschlagsradar: <a href="https://www.dwd.de/" target="_blank" rel="noopener">Deutscher Wetterdienst</a> (Deutschland), <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> (weltweit) · Ersatzkarte: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a><br>
   Karte &amp; Ortsnamen: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende · Keine Anmeldung, keine Werbung, Favoriten bleiben nur auf diesem Gerät.
 </footer>
@@ -255,6 +282,7 @@
   </div>
 </div>
 
+<div class="sheet" id="pollenSheet" role="dialog" aria-label="Pollenbelastung"><div class="box" id="pollenBox"></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
@@ -272,6 +300,7 @@ const store = {
 const API = {
   forecast: 'https://api.open-meteo.com/v1/forecast',
   ensemble: 'https://ensemble-api.open-meteo.com/v1/ensemble',
+  air:      'https://air-quality-api.open-meteo.com/v1/air-quality',
   geocode:  'https://geocoding-api.open-meteo.com/v1/search',
   reverse:  'https://nominatim.openstreetmap.org/reverse'
 };
@@ -355,7 +384,7 @@ const key = l => l.lat.toFixed(3) + ',' + l.lon.toFixed(3);
 /* ---------- Laden ---------- */
 async function loadLocation(loc) {
   if (state.view === 'favs') state.view = state.prevView || 'today';
-  state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null; state.radarSrc = null;
+  state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null; state.radarSrc = null; state.pollen = null;
   store.set('lastLoc', loc);
   destroyRadar();
   renderHeader();
@@ -369,6 +398,7 @@ async function loadLocation(loc) {
     }));
     state.loadedAt = Date.now();
     render();
+    loadPollen();
   } catch (e) {
     $('#main').innerHTML = `<div class="card pad">Die Wetterdaten konnten nicht geladen werden. Bitte Internetverbindung prüfen.<br><br><button class="primary" id="retry">Erneut versuchen</button></div>`;
     $('#retry').onclick = () => loadLocation(loc);
@@ -714,7 +744,7 @@ function segsHTML(date) {
 function dayCard(i, open) {
   const D = state.data.daily, date = D.time[i];
   return `<div class="card">
-    <div class="day-head"><div class="d">${dayName(date, i, true)}<span>${dshort(date)}</span></div>
+    <div class="day-head"><div class="d" style="display:flex;align-items:center;gap:8px">${polIcon(date, icon(D.weather_code[i], 1, 38))}<div>${dayName(date, i, true)}<span>${dshort(date)}</span></div></div>
       <div class="maxmin"><b class="mx">${r0(D.temperature_2m_max[i])}°</b> / <b class="mn">${r0(D.temperature_2m_min[i])}°</b></div></div>
     ${segsHTML(date)}
     <div class="day-foot">
@@ -755,7 +785,7 @@ function viewToday() {
   return `
   <div class="card">
     <div class="now">
-      ${icon(C.weather_code, C.is_day, 92)}
+      ${polIcon(D.time[0], icon(C.weather_code, C.is_day, 92))}
       <div style="flex:1;min-width:0">
         <div class="big">${r0(C.temperature_2m)}°</div>
         <div class="desc">${desc(C.weather_code, C.is_day)}</div>
@@ -773,6 +803,7 @@ function viewToday() {
       <div><small>UV-Index max.</small><b>${r0(D.uv_index_max[0])}</b></div>
     </div>
   </div>
+  <div class="card" id="allergyCard">${allergyHTML()}</div>
   <div class="card"><h2>Tagesverlauf heute <span>${dshort(D.time[0])}</span></h2>${segsHTML(D.time[0])}</div>
   <div class="card"><h2>Stündlich <span>nächste 24 Stunden</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
@@ -795,7 +826,7 @@ function view7() {
     <div class="hscroll"><div style="width:${n * W}px;margin:0 auto">
       <div class="hrow">${ix.map(i => `<div class="hcell daytile ${i === sel ? 'sel' : ''}" data-day="${i}" style="width:${W}px">
         <div class="wd">${dayName(D.time[i], i)}</div><div class="dt">${dshort(D.time[i])}</div>
-        ${icon(D.weather_code[i], 1, 46)}
+        ${polIcon(D.time[i], icon(D.weather_code[i], 1, 46))}
         <div class="mx">${r0(D.temperature_2m_max[i])}°</div><div class="mn">${r0(D.temperature_2m_min[i])}°</div>
         <div class="r">💧${D.precipitation_probability_max[i] ?? '–'}&nbsp;%<br>${mm(D.precipitation_sum[i])}</div>
         <div class="s">☀︎ ${D.sunshine_duration[i] != null ? Math.round(D.sunshine_duration[i] / 3600) : '–'}&nbsp;h</div>
@@ -820,7 +851,7 @@ function view21() {
     const l = (r.tmin - gmin) / span * 100, w = Math.max((r.tmax - r.tmin) / span * 100, 3);
     return `<div class="row ${r.trend ? 'trend' : ''} ${sel === r.i ? 'sel' : ''}" ${r.trend ? '' : `data-day="${r.i}"`}>
       <div class="wd">${dayName(r.date, r.i)}<small>${dshort(r.date)}</small>${r.trend ? '<span class="badge">TREND</span>' : ''}</div>
-      ${icon(r.code, 1, 40)}
+      ${polIcon(r.date, icon(r.code, 1, 40))}
       <div class="rng"><span class="mn">${r0(r.tmin)}°</span><span class="bar"><i style="left:${l.toFixed(1)}%;width:${w.toFixed(1)}%"></i></span><span class="mx">${r0(r.tmax)}°</span></div>
       <div class="rr">💧${r.prob ?? '–'}&nbsp;%<br>${mm(r.rain)}</div>
     </div>${sel === r.i ? `<div style="padding:0 8px 8px;background:var(--sel)">${dayCard(r.i)}</div>` : ''}`;
@@ -1182,6 +1213,108 @@ function importFromHash() {
   } catch (e) { toast('Sicherungs-Link ist ungültig'); }
 }
 
+/* ---------- Pollenflug (Hinweis für Allergiker) ----------
+   Quelle: Copernicus CAMS über Open-Meteo, Pollen/m³ Luft, Europa, ca. 3–4 Tage voraus.
+   Einstufung nach gängigen Richtwerten (Bäume / Gräser / Kräuter haben unterschiedliche Schwellen). */
+const POLLEN = [
+  ['alder_pollen', 'Erle', 'tree'], ['birch_pollen', 'Birke', 'tree'], ['grass_pollen', 'Gräser', 'grass'],
+  ['mugwort_pollen', 'Beifuß', 'weed'], ['ragweed_pollen', 'Ambrosia (Ragweed)', 'weed'], ['olive_pollen', 'Olive', 'tree']];
+const PL_TH = { tree: [1, 15, 90, 1500], grass: [1, 5, 20, 200], weed: [1, 10, 50, 500] };
+const PL_LV = ['keine', 'gering', 'mäßig', 'hoch', 'sehr hoch'];
+const PL_COL = ['#9aa7b4', '#7cb342', '#f2b134', '#ef6c2f', '#c62828'];
+const plLevel = (v, kind) => { if (v == null) return -1; let l = 0; PL_TH[kind].forEach((x, i) => { if (v >= x) l = i + 1; }); return l; };
+async function loadPollen() {
+  const loc = state.loc; if (!loc) return;
+  const k = key(loc);
+  if (state.pollen && state.pollen.k === k) return;
+  state.pollen = { k, loading: true, days: {} };
+  try {
+    const j = await getJSON(API.air + '?' + qs({ latitude: loc.lat, longitude: loc.lon, timezone: 'auto', forecast_days: 5, hourly: POLLEN.map(p => p[0]).join(',') }));
+    if (!state.pollen || state.pollen.k !== k) return;
+    const H = j.hourly || {}, days = {};
+    (H.time || []).forEach((t, i) => {
+      const d = t.slice(0, 10), o = days[d] || (days[d] = { n: 0, max: {}, peak: {} });
+      let any = false;
+      POLLEN.forEach(([id]) => {
+        const v = H[id] && H[id][i];
+        if (v == null) return;
+        any = true;
+        if (o.max[id] == null || v > o.max[id]) { o.max[id] = v; o.peak[id] = t.slice(11, 16); }
+      });
+      if (any) o.n++;
+    });
+    // nur Tage mit ausreichend Stundenwerten gelten als vorhergesagt
+    Object.keys(days).forEach(d => { if (days[d].n < 12) delete days[d]; });
+    state.pollen = { k, days };
+  } catch (e) { if (state.pollen && state.pollen.k === k) state.pollen = { k, days: {}, err: true }; }
+  // Anzeige aktualisieren (Blatt-Symbole, Allergiker-Hinweis), ohne die Seite neu aufzubauen
+  document.querySelectorAll('.pol-ic').forEach(el => { const l = el.querySelector('.leaf'); if (l) l.outerHTML = leafHTML(el.dataset.pollen); });
+  const ac = $('#allergyCard'); if (ac) ac.innerHTML = allergyHTML();
+  if ($('#pollenSheet').classList.contains('open') && state.pollenDate) showPollen(state.pollenDate);
+}
+function pollenDay(date) {
+  const P = state.pollen; if (!P || !P.days || !P.days[date]) return null;
+  const o = P.days[date];
+  return POLLEN.map(([id, name, kind]) => ({ id, name, kind, v: o.max[id], peak: o.peak[id], lvl: plLevel(o.max[id], kind) })).filter(x => x.lvl >= 0);
+}
+const leafSVG = c => `<svg viewBox="0 0 24 24"><path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z" fill="${c}"/><path d="M5 19L14 10" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+function leafHTML(date) {
+  const d = pollenDay(date), max = d && d.length ? Math.max(...d.map(x => x.lvl)) : -1;
+  return `<span class="leaf" title="${max >= 0 ? 'Pollen: ' + PL_LV[max] : 'Pollenbelastung'}">${leafSVG(max >= 0 ? PL_COL[max] : '#b9c4cf')}</span>`;
+}
+const polIcon = (date, svg) => `<span class="pol-ic" data-pollen="${date}" role="button" tabindex="0" title="Pollenbelastung anzeigen" aria-label="Pollenbelastung für diesen Tag anzeigen">${svg}${leafHTML(date)}</span>`;
+function allergyHTML() {
+  const P = state.pollen, today = state.data && state.data.daily.time[0];
+  let txt;
+  if (!P || P.loading) txt = 'Pollenvorhersage wird geladen …';
+  else if (P.err) txt = 'Pollenvorhersage derzeit nicht erreichbar.';
+  else {
+    const d = pollenDay(today);
+    if (!d) txt = 'Für diesen Ort gibt es keine Pollenvorhersage (nur Europa).';
+    else {
+      const act = d.filter(x => x.lvl >= 1).sort((a, b) => b.lvl - a.lvl || b.v - a.v);
+      txt = act.length ? 'Heute: ' + act.slice(0, 4).map(x => `${x.name} <span class="lv" style="background:${PL_COL[x.lvl]}">${PL_LV[x.lvl]}</span>`).join(' ')
+        : 'Heute kein nennenswerter Pollenflug.';
+    }
+  }
+  return `<div class="allergy"><div class="ico">🌿</div><div><b>Hinweis für Allergiker</b><div>${txt}</div>
+    <small>Tipp: Wetter-Symbol eines Tages antippen – dann wird die Pollenbelastung angezeigt.</small></div></div>`;
+}
+function showPollen(date) {
+  state.pollenDate = date;
+  const d = pollenDay(date), P = state.pollen;
+  const idx = state.data ? state.data.daily.time.indexOf(date) : -1;
+  const title = (idx >= 0 ? dayName(date, idx, true) + ', ' : '') + dshort(date);
+  let body;
+  if (!P || P.loading) body = '<div class="pad" style="color:var(--muted)">Pollenvorhersage wird geladen …</div>';
+  else if (P.err) body = '<div class="pad">Die Pollenvorhersage ist derzeit nicht erreichbar. Bitte später erneut versuchen.</div>';
+  else if (!d) {
+    const days = Object.keys(P.days || {}).sort();
+    body = `<div class="pad">${days.length
+      ? `Für diesen Tag liegt noch keine Pollenvorhersage vor. Sie reicht nur bis <b>${dshort(days[days.length - 1])}</b> (etwa 3–4 Tage).`
+      : 'Für diesen Ort gibt es keine Pollenvorhersage – sie ist nur für Europa verfügbar.'}</div>`;
+  } else {
+    const max = Math.max(...d.map(x => x.lvl));
+    body = `<div class="pad" style="padding-bottom:6px">Gesamt: <span class="lv" style="background:${PL_COL[max]}">${PL_LV[max]}</span>${max === 0 ? ' – derzeit kein nennenswerter Pollenflug.' : ''}</div>`
+      + d.map(x => `<div class="prow"><div><b>${x.name}</b></div>
+        <div class="bar"><i style="width:${x.lvl <= 0 ? 0 : x.lvl * 25}%;background:${PL_COL[x.lvl]}"></i></div>
+        <div class="val"><b style="color:${PL_COL[x.lvl]}">${PL_LV[x.lvl]}</b>${x.v >= 1 ? Math.round(x.v) + ' /m³' + (x.peak ? ' · ' + x.peak : '') : ''}</div></div>`).join('')
+      + `<div class="ptips">${max >= 2 ? `<b>Tipps bei Pollenallergie:</b><ul><li>Lüften in der Stadt eher frühmorgens, auf dem Land eher abends.</li><li>Nach dem Aufenthalt im Freien Haare waschen, Kleidung nicht im Schlafzimmer ablegen.</li><li>Regen wäscht Pollen vorübergehend aus der Luft.</li></ul>` : ''}
+        Werte: Tageshöchstwert in Pollen pro m³ Luft, mit Uhrzeit des Höchstwerts. Einstufung nach gängigen Richtwerten; Hasel ist nicht enthalten. Kein Ersatz für ärztlichen Rat.</div>`;
+  }
+  $('#pollenBox').innerHTML = `<div class="hd"><div><b>🌿 Pollenbelastung</b><small>${esc(title)} · ${esc(state.loc ? state.loc.name : '')}</small></div>
+    <button class="icon-btn" id="pollenClose" aria-label="Schließen" style="color:var(--text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>${body}`;
+  $('#pollenSheet').classList.add('open');
+  $('#pollenClose').onclick = closePollen;
+  if (!P) loadPollen();
+}
+function closePollen() { $('#pollenSheet').classList.remove('open'); state.pollenDate = null; }
+$('#pollenSheet').addEventListener('click', e => { if (e.target.id === 'pollenSheet') closePollen(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePollen();
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('pol-ic')) { e.preventDefault(); showPollen(e.target.dataset.pollen); }
+});
+
 function render() {
   setTabs();
   destroyRadar();
@@ -1198,6 +1331,8 @@ function render() {
 }
 $('#main').onclick = e => {
   if (state.view === 'favs') { favClick(e); return; }
+  const pol = e.target.closest('[data-pollen]');
+  if (pol) { e.stopPropagation(); showPollen(pol.dataset.pollen); return; }
   const t = e.target.closest('[data-day]'); if (!t) return;
   const i = +t.dataset.day;
   state.sel = (state.view === '21' && state.sel === i) ? null : i;
