@@ -26,7 +26,13 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 | Niederschlagsradar weltweit | [RainViewer](https://www.rainviewer.com/api.html) (weltweite Radar-Mosaike, u. a. DWD) |
 | Karte | Leaflet + OpenStreetMap, Radar-Hintergrund CARTO |
 
+## App-Symbol
+Sonne mit freundlichem Gesicht unter einem Regenschirm, dazu Regentropfen (`icons/icon.svg`).
+Es ist als Tab-Symbol und als iPhone-Startbildschirm-Symbol direkt in `index.html` eingebettet und erscheint als Logo in der Kopfzeile.
+`manifest.webmanifest` und der Ordner `icons/` sorgen dafür, dass die App – über eine Webadresse geöffnet und zum Startbildschirm hinzugefügt – mit diesem Symbol und ohne Adresszeile startet.
+
 ## Nutzung
 GPS funktioniert im Browser nur über **HTTPS**. Am einfachsten über GitHub Pages:
 Repository → *Settings* → *Pages* → Branch auswählen → Ordner `/ (root)`.
 Danach die Seite auf dem Smartphone öffnen und über „Zum Startbildschirm hinzufügen“ wie eine App nutzen.
+Wichtig: `index.html`, `manifest.webmanifest` und den Ordner `icons/` gemeinsam hochladen.
