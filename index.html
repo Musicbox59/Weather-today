@@ -139,6 +139,10 @@
   .r-ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px;position:relative;height:18px;line-height:18px}
   .r-ticks .now{color:var(--text);font-weight:700;position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
   .r-legend{display:flex;align-items:center;gap:8px;padding:14px 14px 12px;font-size:12px;color:var(--muted)}
+  .r-src{grid-template-columns:1fr 1fr;margin:10px 14px}
+  .r-legend details{width:100%}
+  .r-legend summary{cursor:pointer;color:var(--blue);font-weight:600}
+  .r-legend details img{display:block;max-width:100%;max-height:320px;margin-top:8px}
   .r-legend i{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#9be1ff,#00a3e0,#0050c8,#e8d100,#ff8a00,#e00000,#c800c8)}
   .me-dot{width:18px;height:18px;border-radius:50%;background:#d7262f;border:3px solid #fff;box-shadow:0 0 0 0 rgba(215,38,47,.6);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(215,38,47,.55)}70%{box-shadow:0 0 0 16px rgba(215,38,47,0)}100%{box-shadow:0 0 0 0 rgba(215,38,47,0)}}
@@ -204,7 +208,7 @@
 
 <footer class="wrap">
   Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (u.&nbsp;a. DWD ICON, ECMWF, NOAA GFS/GEFS) · CC BY 4.0<br>
-  Niederschlagsradar: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> · Kartenstil: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a><br>
+  Niederschlagsradar: <a href="https://www.dwd.de/" target="_blank" rel="noopener">Deutscher Wetterdienst</a> (Deutschland), <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> (weltweit) · Kartenstil: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a><br>
   Karte &amp; Ortsnamen: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende · Keine Anmeldung, keine Werbung, Favoriten bleiben nur auf diesem Gerät.
 </footer>
 
@@ -655,20 +659,31 @@ function view21() {
   ${extra.length ? 'Tage mit „TREND“: Mittel aus 31 Ensemble-Läufen des US-Wetterdienstes NOAA (GEFS) – nur grobe Tendenz.' : ''}</p>`;
 }
 
-/* ---------- Niederschlagsradar (RainViewer, weltweit, ca. letzte 2 Std. + Kurzfrist-Prognose) ---------- */
+/* ---------- Niederschlagsradar ----------
+   Deutschland: DWD-Radarverbund (WMS-Dienst des Deutschen Wetterdienstes, 1 km, 5-Minuten-Takt)
+   Weltweit:    RainViewer (Radar-Mosaike, ca. letzte 2 Std. + Kurzfrist-Prognose, falls angeboten) */
 const RADAR_API = 'https://api.rainviewer.com/public/weather-maps.json';
+const DWD_WMS = 'https://maps.dwd.de/geoserver/dwd/wms', DWD_LAYER = 'dwd:Niederschlagsradar';
+const DWD_CAPS = 'https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/ows?service=WMS&version=1.3.0&request=GetCapabilities';
+const inGermany = l => l && l.lat >= 47.2 && l.lat <= 55.1 && l.lon >= 5.8 && l.lon <= 15.1;
+const radarSrc = () => state.radarSrc || (inGermany(state.loc) ? 'dwd' : 'rv');
 let radar = null;
 function destroyRadar() {
   if (!radar) return;
-  clearInterval(radar.anim); clearInterval(radar.refresh);
+  clearInterval(radar.anim); clearInterval(radar.refresh); clearTimeout(radar.check);
   try { radar.map.remove(); } catch (e) {}
   radar = null;
 }
 const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 function viewRadar() {
+  const src = radarSrc();
   return `<div class="card radar">
     <h2>Niederschlagsradar <span>${esc(state.loc.name)}</span></h2>
+    <div class="r-src seg" id="rSrc">
+      <button data-src="dwd" class="${src === 'dwd' ? 'on' : ''}">DWD · Deutschland</button>
+      <button data-src="rv" class="${src === 'rv' ? 'on' : ''}">Weltweit</button>
+    </div>
     <div style="position:relative">
       <div id="radarMap"></div>
       <div class="r-time" id="rTime">Radar wird geladen …</div>
@@ -678,9 +693,19 @@ function viewRadar() {
       <button class="r-play" id="rPlay" aria-label="Abspielen">${ICON_PLAY}</button>
       <div class="r-track"><input type="range" id="rSlider" min="0" max="0" value="0" aria-label="Zeitpunkt"><div class="r-ticks" id="rTicks"></div></div>
     </div>
-    <div class="r-legend">leicht <i></i> stark</div>
+    <div class="r-legend" id="rLegend"></div>
   </div>
-  <p class="note">Roter Punkt = gewählter Standort. Links von „Jetzt“: gemessene Radarbilder der letzten ca. 2 Stunden; „Prognose“: Hochrechnung der Niederschlagsbewegung (sofern vom Dienst angeboten). Kartenausschnitt mit zwei Fingern zoomen.</p>`;
+  <p class="note" id="rNote"></p>`;
+}
+function radarTexts() {
+  const dwd = radar.src === 'dwd';
+  $('#rLegend').innerHTML = dwd
+    ? `<details><summary>Farbskala des DWD (Niederschlag in mm/h)</summary><img alt="Legende DWD-Niederschlagsradar" src="${DWD_WMS}?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image/png&layer=${encodeURIComponent(DWD_LAYER)}"></details>`
+    : 'leicht <i></i> stark';
+  $('#rNote').textContent = (dwd
+    ? 'Quelle: Radarverbund des Deutschen Wetterdienstes (1 km Auflösung, deckt Deutschland und Grenzgebiete ab). '
+    : 'Quelle: RainViewer (weltweit, gröbere Auflösung beim Hineinzoomen). ')
+    + 'Roter Punkt = gewählter Standort. Links von „Jetzt“: gemessene Radarbilder; „Prognose“: Hochrechnung der Niederschlagsbewegung (sofern angeboten).';
 }
 function initRadar() {
   if (!window.L) { window.addEventListener('load', () => { if (state.view === 'radar') render(); }, { once: true }); return; }
@@ -690,54 +715,121 @@ function initRadar() {
     subdomains: 'abcd', maxZoom: 12, minZoom: 3, attribution: '© OpenStreetMap-Mitwirkende © CARTO'
   }).addTo(map);
   L.marker([loc.lat, loc.lon], { icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
-  radar = { map, frames: [], layers: {}, idx: 0, nowIdx: 0, playing: false, anim: null, refresh: null, host: '' };
-  map.attributionControl.addAttribution('Radar © RainViewer');
+  radar = { map, src: radarSrc(), frames: [], layers: {}, idx: 0, nowIdx: 0, playing: false, anim: null, refresh: null, host: '' };
   $('#rMe').onclick = () => map.setView([loc.lat, loc.lon], Math.max(map.getZoom(), 8));
   $('#rPlay').onclick = () => radarPlay(!radar.playing);
   $('#rSlider').oninput = e => { radarPlay(false); radarShow(+e.target.value); };
+  $('#rSrc').onclick = e => { const b = e.target.closest('button[data-src]'); if (b && b.dataset.src !== radar.src) switchRadar(b.dataset.src); };
+  radarTexts();
   loadRadarFrames();
   radar.refresh = setInterval(loadRadarFrames, 5 * 60 * 1000);
 }
+function switchRadar(src, msg) {
+  const r = radar; if (!r) return;
+  state.radarSrc = src;
+  radarPlay(false); clearTimeout(r.check);
+  Object.values(r.layers).forEach(l => r.map.removeLayer(l));
+  Object.assign(r, { src, frames: [], layers: {}, idx: 0, nowIdx: 0, started: false, ok: 0, err: 0 });
+  document.querySelectorAll('#rSrc button').forEach(b => b.classList.toggle('on', b.dataset.src === src));
+  $('#rTime').textContent = 'Radar wird geladen …';
+  radarTexts();
+  if (msg) toast(msg);
+  loadRadarFrames();
+}
+
+/* Zeitpunkte des DWD-Radars aus den WMS-Capabilities lesen (Liste oder start/ende/intervall) */
+const isoMin = d => { const m = /PT(?:(\d+)H)?(?:(\d+)M)?/.exec(d || ''); return m ? (+(m[1] || 0)) * 60 + (+(m[2] || 0)) : 0; };
+function parseTimes(v, from, to) {
+  const out = [];
+  v.split(',').forEach(part => {
+    const seg = part.trim().split('/');
+    if (seg.length === 3) {
+      const a = Date.parse(seg[0]), b = Date.parse(seg[1]), step = isoMin(seg[2]) * 60000;
+      if (!isFinite(a) || !isFinite(b) || !step) return;
+      for (let t = a + Math.max(0, Math.ceil((from - a) / step)) * step; t <= Math.min(b, to); t += step) out.push(t);
+    } else { const t = Date.parse(seg[0]); if (isFinite(t) && t >= from && t <= to) out.push(t); }
+  });
+  return [...new Set(out)].sort((a, b) => a - b);
+}
+async function dwdFrames() {
+  const now = Date.now(), from = now - 125 * 60000, to = now + 125 * 60000;
+  let times = null;
+  try {
+    const r = await fetch(DWD_CAPS);
+    if (r.ok) {
+      const m = /<Dimension[^>]*name="time"[^>]*>([^<]+)<\/Dimension>/i.exec(await r.text());
+      if (m) times = parseTimes(m[1], from, to);
+    }
+  } catch (e) {}
+  let past, fut = [];
+  if (times && times.some(t => t <= now)) {
+    past = times.filter(t => t <= now); fut = times.filter(t => t > now);
+  } else {
+    // Ohne Capabilities: Bilder im 5-Minuten-Raster mit ~10 Min. Verzögerung annehmen
+    const last = Math.floor((now - 10 * 60000) / 300000) * 300000;
+    past = Array.from({ length: 13 }, (_, i) => last - (12 - i) * 600000);
+  }
+  // auf 10-Minuten-Abstände ausdünnen (flüssige Animation, weniger Datenverkehr)
+  const thin = (arr, dir) => { const res = []; let lastT = null; (dir < 0 ? [...arr].reverse() : arr).forEach(t => { if (lastT === null || Math.abs(t - lastT) >= 9.5 * 60000) { res.push(t); lastT = t; } }); return dir < 0 ? res.reverse() : res; };
+  past = thin(past, -1);
+  fut = thin(fut.filter(t => t - past[past.length - 1] >= 9.5 * 60000), 1);
+  const iso = t => new Date(t).toISOString().replace('.000Z', 'Z');
+  return { frames: past.map(t => ({ time: t / 1000, key: iso(t), fc: false })).concat(fut.map(t => ({ time: t / 1000, key: iso(t), fc: true }))), nowIdx: past.length - 1 };
+}
+async function rvFrames(r) {
+  const j = await getJSON(RADAR_API + '?_=' + Math.floor(Date.now() / 60000));
+  const past = (j.radar && j.radar.past) || [], fc = (j.radar && j.radar.nowcast) || [];
+  if (!past.length) throw new Error('keine Radardaten');
+  r.host = j.host || 'https://tilecache.rainviewer.com';
+  return { frames: past.map(f => ({ time: f.time, key: f.path, fc: false })).concat(fc.map(f => ({ time: f.time, key: f.path, fc: true }))), nowIdx: past.length - 1 };
+}
 async function loadRadarFrames() {
   const r = radar; if (!r) return;
+  const src = r.src;
   try {
-    const j = await getJSON(RADAR_API + '?_=' + Math.floor(Date.now() / 60000));
-    if (r !== radar) return;
-    const past = (j.radar && j.radar.past) || [], fc = (j.radar && j.radar.nowcast) || [];
-    if (!past.length) throw new Error('keine Radardaten');
-    r.host = j.host || 'https://tilecache.rainviewer.com';
-    r.frames = past.map(f => ({ ...f, fc: false })).concat(fc.map(f => ({ ...f, fc: true })));
-    r.nowIdx = past.length - 1;
-    const keep = new Set(r.frames.map(f => f.path));
-    Object.keys(r.layers).forEach(p => { if (!keep.has(p)) { r.map.removeLayer(r.layers[p]); delete r.layers[p]; } });
-    const sl = $('#rSlider'); sl.max = r.frames.length - 1;
+    const res = src === 'dwd' ? await dwdFrames() : await rvFrames(r);
+    if (r !== radar || r.src !== src) return;
+    r.frames = res.frames; r.nowIdx = res.nowIdx;
+    const keep = new Set(r.frames.map(f => f.key));
+    Object.keys(r.layers).forEach(k => { if (!keep.has(k)) { r.map.removeLayer(r.layers[k]); delete r.layers[k]; } });
+    $('#rSlider').max = r.frames.length - 1;
     const t0 = r.frames[0].time, tn = r.frames[r.frames.length - 1].time;
     $('#rTicks').innerHTML = `<span>${clock(t0)}</span><span>${clock(tn)}</span><span class="now" style="left:calc(8px + (100% - 16px) * ${r.nowIdx / Math.max(r.frames.length - 1, 1)})">▲ Jetzt</span>`;
-    radarShow(r.nowIdx);
-    if (!r.started) { r.started = true; radarPlay(true); }
+    radarShow(r.idx && r.started ? r.idx : r.nowIdx);
+    if (!r.started) {
+      r.started = true; radarPlay(true);
+      // DWD-Dienst nicht erreichbar? -> automatisch auf weltweites Radar umschalten
+      if (src === 'dwd') r.check = setTimeout(() => { if (r === radar && r.src === 'dwd' && !r.ok && r.err) switchRadar('rv', 'DWD-Radar nicht erreichbar – zeige weltweites Radar'); }, 9000);
+    }
   } catch (e) {
-    if (r === radar) $('#rTime').textContent = 'Radar derzeit nicht verfügbar';
+    if (r !== radar || r.src !== src) return;
+    if (src === 'rv' && inGermany(state.loc) && !r.started) switchRadar('dwd', 'Weltweites Radar nicht erreichbar – zeige DWD-Radar');
+    else $('#rTime').textContent = 'Radar derzeit nicht verfügbar';
   }
 }
 const clock = t => { const d = new Date(t * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 function radarLayer(f) {
   const r = radar;
-  if (!r.layers[f.path]) {
-    // Farbschema 2 (Universal Blue), geglättet, mit Schnee-Darstellung; native Auflösung bis Zoom 7
-    r.layers[f.path] = L.tileLayer(r.host + f.path + '/256/{z}/{x}/{y}/2/1_1.png', {
-      tileSize: 256, opacity: 0, maxNativeZoom: 7, maxZoom: 12, zIndex: 10
-    }).addTo(r.map);
+  if (!r.layers[f.key]) {
+    const l = r.src === 'dwd'
+      ? L.tileLayer.wms(DWD_WMS, { layers: DWD_LAYER, format: 'image/png', transparent: true, version: '1.3.0', time: f.key,
+          tileSize: 512, opacity: 0, zIndex: 10, maxZoom: 12, attribution: 'Radar © Deutscher Wetterdienst' })
+      // Farbschema 2 (Universal Blue), geglättet, mit Schnee-Darstellung; native Auflösung bis Zoom 7
+      : L.tileLayer(r.host + f.key + '/256/{z}/{x}/{y}/2/1_1.png', { tileSize: 256, opacity: 0, maxNativeZoom: 7, maxZoom: 12, zIndex: 10, attribution: 'Radar © RainViewer' });
+    l.on('tileload', () => { r.ok = (r.ok || 0) + 1; });
+    l.on('tileerror', () => { r.err = (r.err || 0) + 1; });
+    r.layers[f.key] = l.addTo(r.map);
   }
-  return r.layers[f.path];
+  return r.layers[f.key];
 }
 function radarShow(i) {
   const r = radar; if (!r || !r.frames.length) return;
   i = Math.max(0, Math.min(i, r.frames.length - 1));
   const f = r.frames[i];
-  radarLayer(f).setOpacity(0.8);
+  radarLayer(f).setOpacity(r.src === 'dwd' ? 0.75 : 0.8);
   // nächstes Bild vorladen, damit die Animation flüssig läuft
   const nx = r.frames[(i + 1) % r.frames.length]; if (nx) radarLayer(nx);
-  r.frames.forEach((g, k) => { if (k !== i && r.layers[g.path]) r.layers[g.path].setOpacity(0); });
+  r.frames.forEach((g, k) => { if (k !== i && r.layers[g.key]) r.layers[g.key].setOpacity(0); });
   r.idx = i;
   $('#rSlider').value = i;
   const diff = Math.round((f.time - r.frames[r.nowIdx].time) / 60);
