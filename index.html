@@ -50,8 +50,8 @@
 
   /* Tabs */
   .tabs{position:sticky;top:0;z-index:15;background:var(--bg);padding:10px 16px}
-  .seg{display:grid;grid-template-columns:repeat(4,1fr);background:#d4dde7;border-radius:10px;padding:3px}
-  .seg button{height:36px;border-radius:8px;font-weight:600;font-size:14px;color:#3b4a5a}
+  .seg{display:grid;grid-template-columns:repeat(5,1fr);background:#d4dde7;border-radius:10px;padding:3px}
+  .seg button{height:36px;border-radius:8px;font-weight:600;font-size:14px;padding:0 2px;white-space:nowrap;color:#3b4a5a}
   .seg button.on{background:#fff;color:var(--blue);box-shadow:0 1px 3px rgba(0,0,0,.15)}
 
   main{padding:0 16px 24px}
@@ -123,6 +123,26 @@
 
   .detail-slot:empty{display:none}
 
+  /* Niederschlagsradar */
+  .radar{position:relative;isolation:isolate}
+  #radarMap{height:min(64vh,560px);min-height:340px;background:#eef1f4}
+  .r-time{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(255,255,255,.95);border-radius:18px;padding:5px 14px;font-weight:700;font-size:15px;box-shadow:0 1px 4px rgba(0,0,0,.25);white-space:nowrap;pointer-events:none}
+  .r-time small{font-weight:600;color:var(--muted);margin-left:6px}
+  .r-time.fc small{color:#b06b00}
+  .r-me{position:absolute;right:10px;bottom:14px;z-index:500;width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);display:grid;place-items:center;color:var(--blue)}
+  .r-me svg{width:22px;height:22px}
+  .r-ctrl{display:flex;align-items:center;gap:12px;padding:10px 14px 4px}
+  .r-play{width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;flex:none}
+  .r-play svg{width:20px;height:20px}
+  .r-track{flex:1;min-width:0}
+  .r-track input{width:100%;accent-color:var(--blue);margin:0}
+  .r-ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px;position:relative;height:18px;line-height:18px}
+  .r-ticks .now{color:var(--text);font-weight:700;position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+  .r-legend{display:flex;align-items:center;gap:8px;padding:14px 14px 12px;font-size:12px;color:var(--muted)}
+  .r-legend i{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#9be1ff,#00a3e0,#0050c8,#e8d100,#ff8a00,#e00000,#c800c8)}
+  .me-dot{width:18px;height:18px;border-radius:50%;background:#d7262f;border:3px solid #fff;box-shadow:0 0 0 0 rgba(215,38,47,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(215,38,47,.55)}70%{box-shadow:0 0 0 16px rgba(215,38,47,0)}100%{box-shadow:0 0 0 0 rgba(215,38,47,0)}}
+
   /* Map */
   .modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.5);display:none;flex-direction:column}
   .modal.open{display:flex}
@@ -177,12 +197,14 @@
   <button data-v="3">3 Tage</button>
   <button data-v="7">7 Tage</button>
   <button data-v="21">21 Tage</button>
+  <button data-v="radar">Radar</button>
 </div></div>
 
 <main class="wrap" id="main"><div class="loading"><div><div class="spin"></div>Lade Wetter …</div></div></main>
 
 <footer class="wrap">
   Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (u.&nbsp;a. DWD ICON, ECMWF, NOAA GFS/GEFS) · CC BY 4.0<br>
+  Niederschlagsradar: <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> · Kartenstil: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a><br>
   Karte &amp; Ortsnamen: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende · Keine Anmeldung, keine Werbung, Favoriten bleiben nur auf diesem Gerät.
 </footer>
 
@@ -298,6 +320,7 @@ const key = l => l.lat.toFixed(3) + ',' + l.lon.toFixed(3);
 async function loadLocation(loc) {
   state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null;
   store.set('lastLoc', loc);
+  destroyRadar();
   renderHeader();
   $('#main').innerHTML = '<div class="loading"><div><div class="spin"></div>Lade Wetter …</div></div>';
   try {
@@ -632,12 +655,120 @@ function view21() {
   ${extra.length ? 'Tage mit „TREND“: Mittel aus 31 Ensemble-Läufen des US-Wetterdienstes NOAA (GEFS) – nur grobe Tendenz.' : ''}</p>`;
 }
 
+/* ---------- Niederschlagsradar (RainViewer, weltweit, ca. letzte 2 Std. + Kurzfrist-Prognose) ---------- */
+const RADAR_API = 'https://api.rainviewer.com/public/weather-maps.json';
+let radar = null;
+function destroyRadar() {
+  if (!radar) return;
+  clearInterval(radar.anim); clearInterval(radar.refresh);
+  try { radar.map.remove(); } catch (e) {}
+  radar = null;
+}
+const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+function viewRadar() {
+  return `<div class="card radar">
+    <h2>Niederschlagsradar <span>${esc(state.loc.name)}</span></h2>
+    <div style="position:relative">
+      <div id="radarMap"></div>
+      <div class="r-time" id="rTime">Radar wird geladen …</div>
+      <button class="r-me" id="rMe" title="Zur aktuellen Position" aria-label="Zur aktuellen Position"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>
+    </div>
+    <div class="r-ctrl">
+      <button class="r-play" id="rPlay" aria-label="Abspielen">${ICON_PLAY}</button>
+      <div class="r-track"><input type="range" id="rSlider" min="0" max="0" value="0" aria-label="Zeitpunkt"><div class="r-ticks" id="rTicks"></div></div>
+    </div>
+    <div class="r-legend">leicht <i></i> stark</div>
+  </div>
+  <p class="note">Roter Punkt = gewählter Standort. Links von „Jetzt“: gemessene Radarbilder der letzten ca. 2 Stunden; „Prognose“: Hochrechnung der Niederschlagsbewegung (sofern vom Dienst angeboten). Kartenausschnitt mit zwei Fingern zoomen.</p>`;
+}
+function initRadar() {
+  if (!window.L) { window.addEventListener('load', () => { if (state.view === 'radar') render(); }, { once: true }); return; }
+  const loc = state.loc;
+  const map = L.map('radarMap', { zoomControl: true, attributionControl: true }).setView([loc.lat, loc.lon], 7);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 12, minZoom: 3, attribution: '© OpenStreetMap-Mitwirkende © CARTO'
+  }).addTo(map);
+  L.marker([loc.lat, loc.lon], { icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
+  radar = { map, frames: [], layers: {}, idx: 0, nowIdx: 0, playing: false, anim: null, refresh: null, host: '' };
+  map.attributionControl.addAttribution('Radar © RainViewer');
+  $('#rMe').onclick = () => map.setView([loc.lat, loc.lon], Math.max(map.getZoom(), 8));
+  $('#rPlay').onclick = () => radarPlay(!radar.playing);
+  $('#rSlider').oninput = e => { radarPlay(false); radarShow(+e.target.value); };
+  loadRadarFrames();
+  radar.refresh = setInterval(loadRadarFrames, 5 * 60 * 1000);
+}
+async function loadRadarFrames() {
+  const r = radar; if (!r) return;
+  try {
+    const j = await getJSON(RADAR_API + '?_=' + Math.floor(Date.now() / 60000));
+    if (r !== radar) return;
+    const past = (j.radar && j.radar.past) || [], fc = (j.radar && j.radar.nowcast) || [];
+    if (!past.length) throw new Error('keine Radardaten');
+    r.host = j.host || 'https://tilecache.rainviewer.com';
+    r.frames = past.map(f => ({ ...f, fc: false })).concat(fc.map(f => ({ ...f, fc: true })));
+    r.nowIdx = past.length - 1;
+    const keep = new Set(r.frames.map(f => f.path));
+    Object.keys(r.layers).forEach(p => { if (!keep.has(p)) { r.map.removeLayer(r.layers[p]); delete r.layers[p]; } });
+    const sl = $('#rSlider'); sl.max = r.frames.length - 1;
+    const t0 = r.frames[0].time, tn = r.frames[r.frames.length - 1].time;
+    $('#rTicks').innerHTML = `<span>${clock(t0)}</span><span>${clock(tn)}</span><span class="now" style="left:calc(8px + (100% - 16px) * ${r.nowIdx / Math.max(r.frames.length - 1, 1)})">▲ Jetzt</span>`;
+    radarShow(r.nowIdx);
+    if (!r.started) { r.started = true; radarPlay(true); }
+  } catch (e) {
+    if (r === radar) $('#rTime').textContent = 'Radar derzeit nicht verfügbar';
+  }
+}
+const clock = t => { const d = new Date(t * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+function radarLayer(f) {
+  const r = radar;
+  if (!r.layers[f.path]) {
+    // Farbschema 2 (Universal Blue), geglättet, mit Schnee-Darstellung; native Auflösung bis Zoom 7
+    r.layers[f.path] = L.tileLayer(r.host + f.path + '/256/{z}/{x}/{y}/2/1_1.png', {
+      tileSize: 256, opacity: 0, maxNativeZoom: 7, maxZoom: 12, zIndex: 10
+    }).addTo(r.map);
+  }
+  return r.layers[f.path];
+}
+function radarShow(i) {
+  const r = radar; if (!r || !r.frames.length) return;
+  i = Math.max(0, Math.min(i, r.frames.length - 1));
+  const f = r.frames[i];
+  radarLayer(f).setOpacity(0.8);
+  // nächstes Bild vorladen, damit die Animation flüssig läuft
+  const nx = r.frames[(i + 1) % r.frames.length]; if (nx) radarLayer(nx);
+  r.frames.forEach((g, k) => { if (k !== i && r.layers[g.path]) r.layers[g.path].setOpacity(0); });
+  r.idx = i;
+  $('#rSlider').value = i;
+  const diff = Math.round((f.time - r.frames[r.nowIdx].time) / 60);
+  const lbl = diff === 0 ? 'Jetzt' : f.fc ? 'Prognose +' + diff + ' Min' : 'vor ' + (-diff) + ' Min';
+  const el = $('#rTime'); el.classList.toggle('fc', f.fc);
+  el.innerHTML = `${clock(f.time)} Uhr<small>${lbl}</small>`;
+}
+function radarPlay(on) {
+  const r = radar; if (!r) return;
+  r.playing = on; clearInterval(r.anim);
+  $('#rPlay').innerHTML = on ? ICON_PAUSE : ICON_PLAY;
+  $('#rPlay').setAttribute('aria-label', on ? 'Pause' : 'Abspielen');
+  if (!on) return;
+  let hold = 0;
+  r.anim = setInterval(() => {
+    if (!r.frames.length) return;
+    // am letzten Bild und bei "Jetzt" kurz verweilen – wie bei gängigen Radar-Ansichten
+    if ((r.idx === r.frames.length - 1 || r.idx === r.nowIdx) && hold < 3) { hold++; return; }
+    hold = 0;
+    radarShow(r.idx >= r.frames.length - 1 ? 0 : r.idx + 1);
+  }, 500);
+}
+
 function render() {
   setTabs();
+  destroyRadar();
   if (!state.data) return;
   const v = state.view;
   try {
-    $('#main').innerHTML = v === '3' ? view3() : v === '7' ? view7() : v === '21' ? view21() : viewToday();
+    $('#main').innerHTML = v === '3' ? view3() : v === '7' ? view7() : v === '21' ? view21() : v === 'radar' ? viewRadar() : viewToday();
+    if (v === 'radar') initRadar();
   } catch (e) {
     console.error(e);
     $('#main').innerHTML = '<div class="card pad">Darstellung fehlgeschlagen. Bitte neu laden.</div>';

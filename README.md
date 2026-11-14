@@ -5,7 +5,8 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 ## Funktionen
 - **Standort** per GPS des Smartphones, per **Ortssuche** (Name oder PLZ) oder per **Punkt auf der Karte**
 - **Favoriten** mit dem ☆-Stern speichern (lokal im Browser, keine Anmeldung)
-- Ansichten: **Heute** (aktuell, Tagesverlauf, stündlich), **3 Tage**, **7 Tage**, **21 Tage**
+- Ansichten: **Heute** (aktuell, Tagesverlauf, stündlich), **3 Tage**, **7 Tage**, **21 Tage**, **Radar**
+- **Niederschlagsradar**: animierte 2D-Karte (ca. letzte 2 Stunden + Kurzfrist-Prognose, falls verfügbar) mit Markierung der aktuellen Position, Zeitleiste und Play/Pause
 - Darstellung angelehnt an klassische Wetterportale: Symbole, rote Höchst-/blaue Tiefstwerte, Temperaturkurven, Regenwahrscheinlichkeit
 
 ## Datenquellen (kostenlos & seriös)
@@ -15,7 +16,8 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 | Trend Tag 17–21 | Open-Meteo Ensemble-API, NOAA GEFS (Mittel aus 31 Läufen) |
 | Ortssuche | Open-Meteo Geocoding (GeoNames) |
 | Ortsname zu GPS/Kartenpunkt | Nominatim / OpenStreetMap |
-| Karte | Leaflet + OpenStreetMap |
+| Niederschlagsradar | [RainViewer](https://www.rainviewer.com/api.html) (weltweite Radar-Mosaike, u. a. DWD) |
+| Karte | Leaflet + OpenStreetMap, Radar-Hintergrund CARTO |
 
 ## Nutzung
 GPS funktioniert im Browser nur über **HTTPS**. Am einfachsten über GitHub Pages:
