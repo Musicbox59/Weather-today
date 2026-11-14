@@ -204,6 +204,20 @@
   .prow .val b{display:block;font-size:13px}
   .ptips{padding:10px 16px 0;font-size:13px;color:var(--muted)}
   .ptips ul{margin:6px 0 8px;padding-left:18px}
+  /* Bauernregel des Tages: halbtransparentes Symbol rechts unten */
+  .saying-btn{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:90;width:54px;height:54px;border-radius:50%;
+    background:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.7);box-shadow:0 2px 10px rgba(20,40,70,.18);display:grid;place-items:center;opacity:.72;
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:opacity .2s,transform .2s}
+  .saying-btn:hover,.saying-btn:focus-visible{opacity:1;transform:scale(1.06);outline:none}
+  .saying-btn svg{width:34px;height:34px}
+  .saying{padding:18px 20px 6px;text-align:center}
+  .saying q{display:block;font-size:20px;line-height:1.45;font-style:italic;font-weight:500;quotes:none;color:var(--text)}
+  .saying .nav{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 4px 4px}
+  .saying .nav button{height:40px;min-width:44px;border-radius:20px;background:#eef2f6;font-weight:700;color:var(--blue);padding:0 14px}
+  .saying .nav button:disabled{opacity:.35}
+  .saying .nav span{font-size:13px;color:var(--muted)}
+  .saying small{display:block;color:var(--muted);font-size:12px;padding:8px 0 4px}
+  footer{padding-bottom:84px}
 
   /* Niederschlagsradar */
   .radar{position:relative;isolation:isolate}
@@ -311,6 +325,15 @@
   </div>
 </div>
 
+<button class="saying-btn" id="sayingBtn"><svg viewBox="0 0 64 64" aria-hidden="true">
+  <path d="M10 14h44a6 6 0 0 1 6 6v20a6 6 0 0 1-6 6H30l-12 10v-10h-8a6 6 0 0 1-6-6V20a6 6 0 0 1 6-6z" fill="#fff" fill-opacity=".9" stroke="#0a4f94" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M18 26c6-6 22-6 28 0" fill="none" stroke="#c48a1a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M15 27h34" stroke="#c48a1a" stroke-width="4" stroke-linecap="round"/>
+  <path d="M24 26c0-6 4-9 8-9s8 3 8 9" fill="#e9b949" stroke="#c48a1a" stroke-width="2"/>
+  <path d="M26 35q6 4 12 0" fill="none" stroke="#0a4f94" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="27" cy="31" r="1.8" fill="#0a4f94"/><circle cx="37" cy="31" r="1.8" fill="#0a4f94"/>
+</svg></button>
+<div class="sheet" id="sayingSheet" role="dialog"><div class="box" id="sayingBox"></div></div>
 <div class="sheet" id="pollenSheet" role="dialog"><div class="box" id="pollenBox"></div></div>
 <div class="toast" id="toast"></div>
 
@@ -347,6 +370,8 @@ function applyStatic() {
   document.getElementById('mapModal').setAttribute('aria-label', tr('Karte', 'Map'));
   document.getElementById('mapClose').setAttribute('aria-label', tr('Schließen', 'Close'));
   document.getElementById('pollenSheet').setAttribute('aria-label', tr('Pollenbelastung', 'Pollen levels'));
+  const sy = document.getElementById('sayingBtn'); sy.title = tr('Bauernregel des Tages', 'Farmer\'s saying of the day'); sy.setAttribute('aria-label', sy.title);
+  document.getElementById('sayingSheet').setAttribute('aria-label', sy.title);
   const sb = document.getElementById('setBtn'); sb.title = tr('Einstellungen (Einheiten)', 'Settings (units)'); sb.setAttribute('aria-label', sb.title);
   const mi = document.getElementById('mapInfo'); if (!mi.dataset.picked) mi.innerHTML = `<b>${tr('Kein Punkt gewählt', 'No point selected')}</b><small>${tr('Tippe auf die Karte', 'Tap the map')}</small>`;
   document.querySelectorAll('#langSw button').forEach(b => { b.classList.toggle('on', b.dataset.lang === LANG); b.setAttribute('aria-pressed', b.dataset.lang === LANG); });
@@ -1456,6 +1481,7 @@ function setLang(l) {
   sug.classList.remove('open');
   applyStatic(); renderHeader(); render();
   if ($('#pollenSheet').classList.contains('open') && state.pollenDate) showPollen(state.pollenDate);
+  if ($('#sayingSheet').classList.contains('open')) showSaying();
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
@@ -1477,6 +1503,42 @@ $('#setBtn').onclick = () => togglePage('settings');
 /* App-Symbol in der Kopfzeile (gleiches Bild wie das Tab-/Startbildschirm-Symbol); Antippen führt zur Ansicht „Heute“ */
 $('#logoImg').src = $('#appIcon').href;
 $('#logoBtn').onclick = () => { state.view = 'today'; state.sel = null; store.set('view', 'today'); render(); renderHeader(); window.scrollTo(0, 0); };
+
+/* ---------- Bauernregel des Tages (mit Augenzwinkern) ----------
+   Jeder Kalendertag bekommt seinen eigenen Spruch; aufeinanderfolgende Tage haben nie denselben. */
+const SAYINGS = [
+  ["Kräht der Hahn auf dem Mist, ändert sich das Wetter – oder es bleibt, wie es ist.", "When the rooster crows on the dung heap, the weather will change – or stay just as it is."], ["Wenn's im Sommer kräftig schneit, ist der Winter nicht mehr weit.", "If it snows heavily in summer, winter can't be far away."], ["Scheint die Sonne auf die Kuh, macht sie vor Freude „Muh“.", "When the sun shines on the cow, she moos with joy – and so do you."], ["Regnet's im Mai auf den Hut, ist der Hut danach nicht mehr gut.", "Rain in May upon your hat – and that hat is done for after that."], ["Hat der Bauer kalte Füße, schickt der Winter schöne Grüße.", "If the farmer's feet are freezing, winter sends its warmest greetings."], ["Steht im Juni die Kuh im Schnee, tut ihr bald das Euter weh.", "If the cow stands in snow in June, her udder will be aching soon."], ["Ist's an Silvester hell und klar, ist am nächsten Tag Neujahr.", "If New Year's Eve is bright and clear, the next day will be New Year."], ["Wenn's regnet, ist das Wetter nass – das weiß der Bauer, das weiß der Has'.", "When it rains, the weather's wet – the farmer knows it, so does the hare, you bet."], ["Ist der Himmel grau in grau, bleibt der Wetterfrosch im Bau.", "When the sky is grey on grey, the weather frog stays in bed all day."], ["Fliegen die Schwalben tief, geht das Picknick schief.", "When the swallows fly down low, the picnic's off – pack up and go."], ["Trinkt der Bauer zu viel Most, spürt er weder Hitz' noch Frost.", "A farmer full of apple wine feels no frost and calls it fine."], ["Ist der Januar hell und weiß, wird der Sommer sicher heiß – oder auch nicht.", "If January is bright and white, summer will surely be hot – or not."], ["Kommt der Wind von vorn, hat der Radler verlor'n.", "When the wind blows in your face, the cyclist loses every race."], ["Putzt die Katze sich im Regen, hat sie den Wetterbericht verlegen.", "If the cat washes herself in the rain, she's lost the forecast again."], ["Hörst du Donner in der Ferne, hättest du den Schirm jetzt gerne.", "Hear the thunder far away? You'll wish you'd brought your umbrella today."], ["Macht der April, was er will, hält der Bauer lieber still.", "April does just what it will – so the farmer keeps quite still."], ["Fällt im Herbst das Laub vom Baum, wird der Rechen bald zum Albtraum.", "When autumn leaves come tumbling down, the rake's the saddest tool in town."], ["Scheint die Sonne ohne Pause, bleibt das Eis nicht lang zu Hause.", "When the sun shines without a break, the ice cream melts for goodness' sake."], ["Liegt der Nebel dicht im Feld, sieht der Bauer nicht mal sein Geld.", "When the fog lies thick on the land, the farmer can't even see his own hand."], ["Verliert der Schneemann seine Nase, war die Sonne in Ekstase.", "When the snowman loses his nose, the sun was out – and so it goes."], ["Regnet es im Sommer warm, nimmt der Frosch die Kröte in den Arm.", "Warm summer rain, a lovely charm – the frog takes the toad by the arm."], ["Liegt im August der Bauer im See, tut ihm danach die Hitze nicht weh.", "If in August the farmer lies in the lake, the heat is something he can take."], ["Ist der Himmel blau und weit, hat der Bauer fürs Fernsehen keine Zeit.", "When the sky is blue and wide, the farmer has no time inside."], ["Verspricht der Wetterbericht viel Sonnenlicht, nimm den Schirm mit – man weiß es ja nicht.", "When the forecast promises sun, take your umbrella anyway – just for fun."], ["Fliegt dem Bauern der Hut davon, ist's ein Sturm – oder der Hut war zu groß schon.", "If the wind blows the farmer's hat away, it's a storm – or the hat was too big anyway."], ["Hängt die Wäsche frisch im Garten, braucht der Regen nicht lang zu warten.", "Hang the washing out to dry – and rain comes tumbling from the sky."], ["Grillt der Nachbar im Januar, ist er verrückt – oder der Winter rar.", "If your neighbour barbecues in January, he's crazy – or winter is extraordinary."], ["Sind die Wolken Schäfchen klein, wird der Schäfer fröhlich sein.", "When the clouds look like little sheep, the shepherd smiles in his sleep."], ["Tanzen Mücken abends munter, geht die Sonne trotzdem unter.", "Even when the midges dance at dusk, the sun goes down as it always must."], ["Schaut der Bauer stumm zum Himmel rauf, gibt er den Wetterbericht schon auf.", "When the farmer stares up at the sky, he's given up on the forecast – that's why."], ["Ist der Sommer heiß und trocken, bleiben auch die Socken trocken.", "When summer's hot and dry, even your socks stay high and dry."], ["Kommt im März der Schneepflug noch, hat der Frühling wohl ein Loch.", "If the snowplough's out in March, spring has fallen through the arch."], ["Steht ein Regenbogen überm Haus, sucht der Bauer den Goldtopf aus.", "A rainbow arching over the house – the farmer goes hunting for gold like a mouse."], ["Schwitzt der Bauer schon beim Kaffee, träumt er von Eis und Schnee.", "If the farmer's sweating over his coffee, he dreams of snow – and frozen toffee."], ["Glatteis auf dem Weg zur Kuh – der Bauer tanzt Ballett im Nu.", "Black ice on the way to the cow – the farmer does ballet, and how!"], ["Gewitter mitten in der Nacht – der Bauer hat kein Aug' zugemacht.", "Thunderstorm all through the night – the farmer didn't sleep a mite."], ["Spaziert die Ente übers Eis, ist der Winter da – zum Beweis.", "When the duck strolls across the pond, winter has waved its frosty wand."], ["Hagelt's auf das neue Auto, flucht der Bauer laut – und froh ist er nicht so.", "Hail falling on the brand-new car – the farmer's swearing is heard from afar."], ["Ist's zu Ostern kalt und weiß, sucht man Eier auf dem Eis.", "If Easter's cold and white, the egg hunt's on the ice tonight."], ["Steigt das Barometer stark, geht der Bauer in den Park.", "When the barometer climbs up high, the farmer strolls the park nearby."], ["Fällt das Barometer tief, hängt der Haussegen schief.", "When the barometer drops down low, the household mood drops too, you know."], ["Ist der Frühling nass und kalt, fühlt der Bauer sich gleich doppelt alt.", "When spring is wet and cold, the farmer feels twice as old."], ["Sagt der Wetterfrosch: „Es bleibt schön!“, solltest du trotzdem in Gummistiefeln gehn.", "When the weather frog says “Fine all day!”, wear your wellies anyway."], ["Brennt die Mittagssonne heiß, braucht der Bauer Bier und Eis.", "When the midday sun is hot, the farmer wants beer and ice – a lot."], ["Schneit es dicht am Heiligabend, ist das Christkind schwer am Graben.", "Heavy snow on Christmas Eve – Santa's digging, I believe."], ["Wird der Tag im Juni lang, wird's den Nachtschwärmern bang.", "When June days grow long and bright, night owls barely get a night."], ["Will der Regen gar nicht enden, sollte sich der Bauer an den Bootsbauer wenden.", "When the rain won't stop at all, the farmer builds an ark for the stall."], ["Bringt der Herbst viel Sturm und Wind, steigt der Drachen – halt fest das Kind!", "When autumn brings a stormy wind, the kite flies high – hold on to the kid!"], ["Ist die Nacht sternenklar, kratzt man morgens Scheiben – wunderbar!", "When the night is starry and clear, you'll scrape your windscreen – oh dear!"], ["Liegt die Kuh unter dem Baum, regnet's bald – oder sie hat nur einen Traum.", "If the cow lies under the tree, rain is coming – or she's napping, you see."], ["Friert's im Winter Stein und Bein, flattert bald die Heizkostenrechnung herein.", "When winter freezes stone and bone, the heating bill will make you groan."], ["Gibt's im Mai noch Frost bei Nacht, wird der Gärtner grau gemacht.", "Frost at night still in May – the gardener's hair is turning grey."], ["Ist der Sommer nass und kühl, fehlt im Freibad das Gewühl.", "When summer is wet and cool, there's no crowd at the swimming pool."], ["Hat die Sonne einen Hof, wird das Wetter ziemlich doof.", "When the sun wears a halo round, nasty weather is homeward bound."], ["Bei Gewitter merk dir's fein: Unter Bäume geh nicht rein!", "In a thunderstorm, remember well: under trees is no place to dwell."], ["Ist im Herbst der Kürbis groß, war das Wetter famos – oder der Dünger ganz famos.", "If the autumn pumpkin's huge, the weather was great – or the fertiliser first-rate."], ["Steht der Schneemann noch im Mai, ist der Frühling nicht dabei.", "If the snowman's still standing in May, spring has clearly lost its way."], ["Wenn der Bauer Sonnencreme kauft, kommt der Regen angelaufen.", "When the farmer buys sun cream, the rain comes running down the stream."], ["Sieht der Hund den Blitz am Himmel, kriecht er unters Bett zum Schimmel.", "When the dog sees lightning in the sky, he hides under the bed – and so do I."], ["Ist es neblig, trüb und grau, sieht der Bauer nicht mal seine Frau.", "When it's foggy, dull and grey, the farmer can't find his wife all day."]
+];
+let sayOffset = 0;
+function sayingFor(offset) {
+  const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + offset);
+  const n = Math.floor(d.getTime() / 86400000);
+  const i = ((n * 37) % SAYINGS.length + SAYINGS.length) % SAYINGS.length;   // gleichmäßig verteilt, kein Wiederholen an Nachbartagen
+  return { date: d, text: SAYINGS[i][LANG === 'en' ? 1 : 0] };
+}
+function showSaying() {
+  const { date, text } = sayingFor(sayOffset);
+  const iso = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  const dayLbl = sayOffset === 0 ? tr('Heute', 'Today') : sayOffset === 1 ? tr('Morgen', 'Tomorrow') : sayOffset === -1 ? tr('Gestern', 'Yesterday')
+    : (LANG === 'en' ? WDL_EN : WDL_DE)[date.getDay()];
+  $('#sayingBox').innerHTML = `<div class="hd"><div><b>🌾 ${tr('Bauernregel des Tages', 'Farmer\'s saying of the day')}</b><small>${dayLbl}, ${dshort(iso)}</small></div>
+    <button class="icon-btn" id="sayingClose" aria-label="${tr('Schließen', 'Close')}" style="color:var(--text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="saying"><q>„${esc(text)}“</q>
+      <div class="nav"><button id="sayPrev" aria-label="${tr('Vorheriger Tag', 'Previous day')}">‹ ${tr('Vortag', 'Previous')}</button>
+        <span>${sayOffset === 0 ? '😉' : `<a href="#" id="sayToday">${tr('zurück zu heute', 'back to today')}</a>`}</span>
+        <button id="sayNext" aria-label="${tr('Nächster Tag', 'Next day')}">${tr('Folgetag', 'Next')} ›</button></div>
+      <small>${tr('Mit Augenzwinkern – keine echte Wettervorhersage.', 'Tongue in cheek – not a real weather forecast.')}</small></div>`;
+  if (LANG === 'en') $('#sayingBox q').textContent = '“' + text + '”';
+  $('#sayingSheet').classList.add('open');
+  $('#sayingClose').onclick = closeSaying;
+  $('#sayPrev').onclick = () => { sayOffset--; showSaying(); };
+  $('#sayNext').onclick = () => { sayOffset++; showSaying(); };
+  const t = $('#sayToday'); if (t) t.onclick = e => { e.preventDefault(); sayOffset = 0; showSaying(); };
+}
+function closeSaying() { $('#sayingSheet').classList.remove('open'); sayOffset = 0; }
+$('#sayingBtn').onclick = () => { sayOffset = 0; showSaying(); };
+$('#sayingSheet').addEventListener('click', e => { if (e.target.id === 'sayingSheet') closeSaying(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSaying(); });
 
 function render() {
   setTabs();
