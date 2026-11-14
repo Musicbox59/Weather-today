@@ -208,7 +208,7 @@
 
 <footer class="wrap">
   Wetterdaten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (u.&nbsp;a. DWD ICON, ECMWF, NOAA GFS/GEFS) · CC BY 4.0<br>
-  Niederschlagsradar: <a href="https://www.dwd.de/" target="_blank" rel="noopener">Deutscher Wetterdienst</a> (Deutschland), <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> (weltweit) · Kartenstil: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a><br>
+  Niederschlagsradar: <a href="https://www.dwd.de/" target="_blank" rel="noopener">Deutscher Wetterdienst</a> (Deutschland), <a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a> (weltweit) · Ersatzkarte: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a><br>
   Karte &amp; Ortsnamen: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende · Keine Anmeldung, keine Werbung, Favoriten bleiben nur auf diesem Gerät.
 </footer>
 
@@ -466,7 +466,23 @@ function useGPS(silent) {
 }
 $('#gpsBtn').onclick = () => useGPS(false);
 
-/* ---------- Karte ---------- */
+/* ---------- Karte ----------
+   Gleiche Karte wie in JOIN (join4all.com): Leaflet 1.9.4 + OpenStreetMap-Standardkacheln, ohne Schlüssel.
+   OpenStreetMap sperrt Kacheln, wenn die Seite ohne Webadresse geöffnet wird (lokale Datei, Vorschau) –
+   dann und bei Ladefehlern wird automatisch die ebenfalls schlüsselfreie CARTO-Karte verwendet. */
+const OSM_OK = /^https?:$/.test(location.protocol);
+function baseLayer(map, maxZoom) {
+  const carto = () => L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom, attribution: '© OpenStreetMap-Mitwirkende © CARTO' });
+  if (!OSM_OK) return carto().addTo(map);
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: Math.min(maxZoom, 19), attribution: '© OpenStreetMap-Mitwirkende' });
+  let ok = 0, err = 0, swapped = false;
+  osm.on('tileload', () => ok++);
+  osm.on('tileerror', () => {
+    if (++err >= 4 && !ok && !swapped) { swapped = true; map.removeLayer(osm); carto().addTo(map).bringToBack(); }
+  });
+  return osm.addTo(map);
+}
 let map, marker, mapPick = null, mapSeq = 0;
 $('#mapBtn').onclick = () => {
   if (!window.L) { toast('Karte wird noch geladen …'); return; }
@@ -474,7 +490,7 @@ $('#mapBtn').onclick = () => {
   const c = state.loc ? [state.loc.lat, state.loc.lon] : [51.1, 10.4];
   if (!map) {
     map = L.map('map', { zoomControl: true }).setView(c, state.loc ? 8 : 6);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende' }).addTo(map);
+    baseLayer(map, 19);
     map.on('click', async e => {
       const { lat, lng } = e.latlng, lon = ((lng + 540) % 360) - 180;
       if (marker) marker.setLatLng(e.latlng); else marker = L.circleMarker(e.latlng, { radius: 10, color: '#fff', weight: 3, fillColor: '#d7262f', fillOpacity: 1 }).addTo(map);
@@ -726,9 +742,8 @@ function initRadar() {
   if (!window.L) { window.addEventListener('load', () => { if (state.view === 'radar') render(); }, { once: true }); return; }
   const loc = state.loc;
   const map = L.map('radarMap', { zoomControl: true, attributionControl: true }).setView([loc.lat, loc.lon], 7);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd', maxZoom: 12, minZoom: 3, attribution: '© OpenStreetMap-Mitwirkende © CARTO'
-  }).addTo(map);
+  map.setMinZoom(3); map.setMaxZoom(12);
+  baseLayer(map, 12);
   L.marker([loc.lat, loc.lon], { icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
   radar = { map, src: radarSrc(), frames: [], layers: {}, idx: 0, nowIdx: 0, playing: false, anim: null, refresh: null, host: '' };
   $('#rMe').onclick = () => map.setView([loc.lat, loc.lon], Math.max(map.getZoom(), 8));
