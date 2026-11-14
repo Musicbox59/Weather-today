@@ -3,6 +3,7 @@
 Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anmeldung, ohne Werbung, ohne API-Schlüssel.
 
 ## Funktionen
+- **Deutsch / Englisch** – umschaltbar über die Fahnen oben (🇦🇹 DE / 🇬🇧 EN); ohne Auswahl richtet sich die Sprache nach dem Browser
 - **Standort** per GPS des Smartphones, per **Ortssuche** (Name oder PLZ) oder per **Punkt auf der Karte**
 - **Ortssuche** nach Name oder Postleitzahl – auch österreichische PLZ (4-stellig), Ortsteile und Weiler; Treffer aus Österreich, Deutschland und der Schweiz zuerst
 - **Favoriten** mit dem ☆-Stern speichern; eigene Seite „☰ Favoriten“: jeder Ort als Balken mit aktuellem Wetter-Symbol, Temperatur, Höchst-/Tiefstwert, Wind, Regen/Schnee und Sonnenstunden; sortieren, umbenennen, löschen
