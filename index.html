@@ -824,7 +824,7 @@ async function loadRadarFrames() {
     Object.keys(r.layers).forEach(k => { if (!keep.has(k)) { r.map.removeLayer(r.layers[k]); delete r.layers[k]; } });
     $('#rSlider').max = r.frames.length - 1;
     const t0 = r.frames[0].time, tn = r.frames[r.frames.length - 1].time;
-    $('#rTicks').innerHTML = `<span>${clock(t0)}</span><span>${clock(tn)}</span><span class="now" style="left:calc(8px + (100% - 16px) * ${r.nowIdx / Math.max(r.frames.length - 1, 1)})">▲ Jetzt</span>`;
+    $('#rTicks').innerHTML = `<span>${clock(t0)}</span><span>${clock(tn)}</span>${nowTick(r.nowIdx / Math.max(r.frames.length - 1, 1))}`;
     radarShow(r.idx && r.started ? r.idx : r.nowIdx);
     if (!r.started) {
       r.started = true; radarPlay(true);
@@ -837,6 +837,8 @@ async function loadRadarFrames() {
     else $('#rTime').textContent = 'Radar derzeit nicht verfügbar';
   }
 }
+/* „Jetzt“-Markierung unter dem Regler; am Rand nach innen ausrichten, damit nichts abgeschnitten wird */
+const nowTick = f => `<span class="now" style="left:calc(8px + (100% - 16px) * ${f});transform:translateX(${f > .85 ? '-100%' : f < .15 ? '0' : '-50%'})">${f > .85 ? 'Jetzt ▲' : '▲ Jetzt'}</span>`;
 const clock = t => { const d = new Date(t * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 function radarLayer(f) {
   const r = radar;
