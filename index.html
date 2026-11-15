@@ -204,6 +204,22 @@
   .prow .val b{display:block;font-size:13px}
   .ptips{padding:10px 16px 0;font-size:13px;color:var(--muted)}
   .ptips ul{margin:6px 0 8px;padding-left:18px}
+  /* Outfit / Modepuppe */
+  .outfit{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;align-items:start;padding:12px 14px}
+  .outfit .doll{background:linear-gradient(180deg,#eaf3fc,#f7fafc);border-radius:12px;padding:6px 0;text-align:center}
+  .outfit .doll svg{width:138px;height:auto;display:block;margin:0 auto}
+  .outfit ul{list-style:none;margin:0;padding:0;font-size:14px}
+  .outfit li{padding:4px 0;border-bottom:1px dashed var(--line);display:flex;gap:7px}
+  .outfit li:last-child{border-bottom:0}
+  .outfit li span{flex:none;width:22px;text-align:center}
+  .outfit .why{grid-column:1/3;font-size:13px;color:var(--muted);background:#f6f9fc;border-radius:10px;padding:8px 10px}
+  .outfit .why b{color:var(--text)}
+  .outfit .flair{grid-column:1/3;font-size:13px;background:#fff6e0;border-radius:10px;padding:8px 10px;color:#6b4e00}
+  .gsw{display:inline-flex;background:#eef2f6;border-radius:16px;padding:2px}
+  .gsw button{height:28px;padding:0 10px;border-radius:14px;font-size:13px;font-weight:600;color:#3b4a5a}
+  .gsw button.on{background:var(--blue);color:#fff}
+  .ofbtn{color:var(--blue);font-weight:700;background:#eef4fb;border-radius:14px;padding:3px 10px;font-size:13px}
+  @media (max-width:400px){.outfit{grid-template-columns:118px 1fr}.outfit .doll svg{width:110px}}
   /* Bauernregel des Tages: halbtransparentes Symbol rechts unten */
   .saying-btn{position:fixed;right:calc(14px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));z-index:90;width:54px;height:54px;border-radius:50%;
     background:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.7);box-shadow:0 2px 10px rgba(20,40,70,.18);display:grid;place-items:center;opacity:.72;
@@ -333,6 +349,7 @@
   <path d="M26 35q6 4 12 0" fill="none" stroke="#0a4f94" stroke-width="2.5" stroke-linecap="round"/>
   <circle cx="27" cy="31" r="1.8" fill="#0a4f94"/><circle cx="37" cy="31" r="1.8" fill="#0a4f94"/>
 </svg></button>
+<div class="sheet" id="outfitSheet" role="dialog"><div class="box" id="outfitBox"></div></div>
 <div class="sheet" id="sayingSheet" role="dialog"><div class="box" id="sayingBox"></div></div>
 <div class="sheet" id="pollenSheet" role="dialog"><div class="box" id="pollenBox"></div></div>
 <div class="toast" id="toast"></div>
@@ -372,6 +389,7 @@ function applyStatic() {
   document.getElementById('pollenSheet').setAttribute('aria-label', tr('Pollenbelastung', 'Pollen levels'));
   const sy = document.getElementById('sayingBtn'); sy.title = tr('Bauernregel des Tages', 'Farmer\'s saying of the day'); sy.setAttribute('aria-label', sy.title);
   document.getElementById('sayingSheet').setAttribute('aria-label', sy.title);
+  document.getElementById('outfitSheet').setAttribute('aria-label', tr('Outfit-Vorschlag', 'Outfit suggestion'));
   const sb = document.getElementById('setBtn'); sb.title = tr('Einstellungen (Einheiten)', 'Settings (units)'); sb.setAttribute('aria-label', sb.title);
   const mi = document.getElementById('mapInfo'); if (!mi.dataset.picked) mi.innerHTML = `<b>${tr('Kein Punkt gewählt', 'No point selected')}</b><small>${tr('Tippe auf die Karte', 'Tap the map')}</small>`;
   document.querySelectorAll('#langSw button').forEach(b => { b.classList.toggle('on', b.dataset.lang === LANG); b.setAttribute('aria-pressed', b.dataset.lang === LANG); });
@@ -520,8 +538,8 @@ async function loadLocation(loc) {
     state.data = await getJSON(API.forecast + '?' + qs({
       latitude: loc.lat, longitude: loc.lon, timezone: 'auto', forecast_days: 16,
       current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-      hourly: 'temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day',
-      daily: 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset,sunshine_duration,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max'
+      hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index',
+      daily: 'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,snowfall_sum,precipitation_probability_max,sunrise,sunset,sunshine_duration,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max'
     }));
     state.loadedAt = Date.now();
     render();
@@ -882,6 +900,7 @@ function dayCard(i, open) {
       <span>Wind <b>${dirTxt(D.wind_direction_10m_dominant[i])} ${wv(D.wind_speed_10m_max[i])}</b>, ${tr('Böen', 'gusts')} <b>${ws(D.wind_gusts_10m_max[i])}</b></span>
       <span>☀︎ <b>${hhmm(D.sunrise[i])}</b> – <b>${hhmm(D.sunset[i])}</b></span>
       ${D.uv_index_max[i] != null ? `<span>UV <b>${r0(D.uv_index_max[i])}</b></span>` : ''}
+      <button class="ofbtn" data-outfit="${i}">👗 ${tr('Outfit-Tipp', 'What to wear')}</button>
     </div></div>`;
 }
 /* Linien-Diagramm über Spalten fester Breite */
@@ -932,6 +951,7 @@ function viewToday() {
     </div>
   </div>
   <div class="card" id="allergyCard">${allergyHTML()}</div>
+  <div class="card"><h2>👗 ${tr('Was ziehe ich heute an?', 'What to wear today?')} ${genderSwitch()}</h2>${outfitHTML(0)}</div>
   <div class="card"><h2>${tr('Tagesverlauf heute', 'Today at a glance')} <span>${dshort(D.time[0])}</span></h2>${segsHTML(D.time[0])}</div>
   <div class="card"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
@@ -1482,6 +1502,7 @@ function setLang(l) {
   applyStatic(); renderHeader(); render();
   if ($('#pollenSheet').classList.contains('open') && state.pollenDate) showPollen(state.pollenDate);
   if ($('#sayingSheet').classList.contains('open')) showSaying();
+  if ($('#outfitSheet').classList.contains('open')) showOutfit(outfitDay);
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
@@ -1503,6 +1524,194 @@ $('#setBtn').onclick = () => togglePage('settings');
 /* App-Symbol in der Kopfzeile (gleiches Bild wie das Tab-/Startbildschirm-Symbol); Antippen führt zur Ansicht „Heute“ */
 $('#logoImg').src = $('#appIcon').href;
 $('#logoBtn').onclick = () => { state.view = 'today'; state.sel = null; store.set('view', 'today'); render(); renderHeader(); window.scrollTo(0, 0); };
+
+/* ---------- Outfit-Vorschlag mit Modepuppe ----------
+   Grundlage: gefühlte Temperatur zwischen 7 und 21 Uhr (kältester Wert bestimmt die Jacke, wärmster das Oberteil),
+   Regen/Schnee, Wind/Böen, UV und Sonne – plus Region (Höhenlage, Alpenraum, Küste, Süden). */
+let GENDER = store.get('outfitG', 'f');
+const genderSwitch = () => `<span class="gsw" role="group" aria-label="${tr('Modepuppe', 'Fashion doll')}">
+  <button data-g="f" class="${GENDER === 'f' ? 'on' : ''}">${tr('Frau', 'Woman')}</button><button data-g="m" class="${GENDER === 'm' ? 'on' : ''}">${tr('Mann', 'Man')}</button></span>`;
+function outfitFor(i) {
+  const D = state.data.daily, H = state.data.hourly, date = D.time[i];
+  const hrs = []; H.time.forEach((t, k) => { if (t.startsWith(date)) { const h = +t.slice(11, 13); if (h >= 7 && h <= 21) hrs.push(k); } });
+  if (!hrs.length) return null;
+  const hv = (key, k) => (H[key] && H[key][k] != null) ? H[key][k] : null;
+  const feel = k => hv('apparent_temperature', k) ?? hv('temperature_2m', k);
+  const fs = hrs.map(feel).filter(v => v != null);
+  const fmin = Math.min(...fs), fmax = Math.max(...fs);
+  const hMin = +H.time[hrs[fs.indexOf(fmin)]].slice(11, 13), hMax = +H.time[hrs[fs.indexOf(fmax)]].slice(11, 13);
+  const rainSum = hrs.reduce((a, k) => a + (hv('precipitation', k) || 0), 0);
+  const snowSum = hrs.reduce((a, k) => a + (hv('snowfall', k) || 0), 0);
+  const probMax = Math.max(0, ...hrs.map(k => hv('precipitation_probability', k) || 0));
+  const gust = Math.max(0, ...hrs.map(k => hv('wind_gusts_10m', k) || 0));
+  const codes = hrs.map(k => hv('weather_code', k)).filter(c => c != null);
+  const uv = D.uv_index_max[i] || Math.max(0, ...hrs.map(k => hv('uv_index', k) || 0));
+  const sunH = (D.sunshine_duration[i] || 0) / 3600;
+  const snowy = snowSum >= 0.2 || codes.filter(c => (c >= 71 && c <= 77) || c === 85 || c === 86).length >= 2;
+  const rainy = !snowy && (rainSum >= 1.5 || probMax >= 55);
+  const maybeRain = !snowy && !rainy && probMax >= 35;
+  const storm = codes.some(c => c >= 95);
+  const windy = gust >= 50;
+  const loc = state.loc || {}, cc = loc.cc || '', elev = state.data.elevation || 0, sub = (loc.sub || '').toLowerCase();
+  const alpine = elev >= 800 || cc === 'AT' || cc === 'CH' || cc === 'LI' || (cc === 'DE' && /bayern|bavaria/.test(sub));
+  const coast = (cc === 'DE' && loc.lat >= 53.4) || cc === 'NL' || cc === 'DK';
+  const south = ['IT', 'ES', 'PT', 'GR', 'HR', 'MT', 'CY'].includes(cc) || (loc.lat < 44 && loc.lat > 30);
+  const mountain = elev >= 1000;
+  const g = GENDER, o = { g }, items = [], why = [];
+  const add = (ico, de, en) => items.push([ico, tr(de, en)]);
+  // Jacke / Mantel nach dem kältesten gefühlten Wert
+  if (fmin <= -4) { o.outer = 'parka'; add('🧥', 'Warme Daunenjacke oder Parka', 'Warm down jacket or parka'); }
+  else if (fmin <= 6) { o.outer = 'coat'; add('🧥', 'Wintermantel oder gefütterte Jacke', 'Winter coat or padded jacket'); }
+  else if (fmin <= 14) { o.outer = 'light'; add('🧥', 'Übergangsjacke oder Strickjacke', 'Light jacket or cardigan'); }
+  if (rainy && fmin > 6) { o.outer = 'rain'; const j = items.findIndex(x => x[0] === '🧥'); if (j >= 0) items.splice(j, 1); add('🧥', 'Regenjacke mit Kapuze', 'Rain jacket with hood'); }
+  // Oberteil nach dem wärmsten Wert
+  if (fmax >= 22) { o.top = 'tee'; add('👕', g === 'f' ? 'T-Shirt, Top oder leichte Bluse' : 'T-Shirt oder Polohemd', g === 'f' ? 'T-shirt, top or light blouse' : 'T-shirt or polo shirt'); }
+  else if (fmax >= 14) { o.top = 'long'; add('👕', g === 'f' ? 'Langarmshirt oder Bluse' : 'Langarmshirt oder Hemd', g === 'f' ? 'Long-sleeved top or blouse' : 'Long-sleeved shirt'); }
+  else { o.top = 'sweater'; add('🧶', 'Warmer Pullover', 'Warm jumper'); }
+  // Unterteil
+  const dry = !rainy && !snowy;
+  if (fmax >= 25 && dry) { if (g === 'f') { o.bottom = 'dress'; const j = items.findIndex(x => x[0] === '👕'); if (j >= 0) items.splice(j, 1); add('👗', 'Luftiges Sommerkleid – oder Top mit Rock', 'Airy summer dress – or a top with a skirt'); } else { o.bottom = 'shorts'; add('🩳', 'Kurze Hose', 'Shorts'); } }
+  else if (fmax >= 20 && dry && g === 'f') { o.bottom = 'skirt'; add('👗', 'Rock oder leichte Hose', 'Skirt or light trousers'); }
+  else if (fmin <= -5) { o.bottom = 'warmpants'; add('👖', 'Gefütterte Hose, darunter Thermowäsche', 'Lined trousers with thermal underwear'); }
+  else { o.bottom = 'pants'; add('👖', fmax >= 18 ? (g === 'f' ? 'Leichte Hose oder Jeans' : 'Chino oder Jeans') : 'Lange Hose oder Jeans', fmax >= 18 ? (g === 'f' ? 'Light trousers or jeans' : 'Chinos or jeans') : 'Long trousers or jeans'); }
+  // Schuhe
+  if (snowy || (fmin <= 0 && (rainy || maybeRain))) { o.shoes = 'winterboots'; add('🥾', 'Gefütterte, rutschfeste Winterstiefel', 'Lined winter boots with good grip'); }
+  else if (rainy && rainSum >= 4) { o.shoes = 'rubber'; add('👢', 'Gummistiefel oder wasserdichte Schuhe', 'Wellies or waterproof shoes'); }
+  else if (fmin <= 6 || (mountain && fmax < 22)) { o.shoes = 'boots'; add('🥾', mountain ? 'Feste Schuhe oder Wanderschuhe' : 'Stiefel oder feste Schuhe', mountain ? 'Sturdy shoes or hiking boots' : 'Boots or sturdy shoes'); }
+  else if (fmax >= 24 && dry) { o.shoes = 'sandals'; add('🩴', 'Sandalen', 'Sandals'); }
+  else { o.shoes = 'sneakers'; add('👟', 'Sneaker', 'Trainers'); }
+  // Accessoires
+  if (fmin <= 3) { o.hat = 'beanie'; add('🧢', 'Mütze', 'Beanie'); }
+  else if ((uv >= 6 || fmax >= 27) && sunH >= 4) { o.hat = g === 'f' ? 'sunhat' : 'cap'; add('👒', g === 'f' ? 'Sonnenhut' : 'Kappe oder Sonnenhut', g === 'f' ? 'Sun hat' : 'Cap or sun hat'); }
+  if (fmin <= 5) { o.scarf = 1; add('🧣', 'Schal', 'Scarf'); }
+  if (fmin <= 1) { o.gloves = 1; add('🧤', 'Handschuhe', 'Gloves'); }
+  if ((uv >= 4 || sunH >= 6) && fmax >= 10) { o.glasses = 1; add('🕶️', 'Sonnenbrille' + (uv >= 6 ? ' und Sonnencreme' : ''), 'Sunglasses' + (uv >= 6 ? ' and sun cream' : '')); }
+  if ((rainy || maybeRain) && !windy) { o.umbrella = 1; add('☂️', rainy ? 'Regenschirm' : 'Knirps für alle Fälle', rainy ? 'Umbrella' : 'Pocket umbrella, just in case'); }
+  if ((rainy || snowy) && windy) { o.hood = 1; add('🌬️', 'Kapuze statt Schirm – der Wind ist zu stark', 'Hood instead of umbrella – too windy'); }
+  // Begründung im Tagesverlauf
+  const ft = v => tp(v) + '°';
+  why.push(tr(`Gefühlt <b>${ft(fmin)}</b> (um ${hMin} Uhr) bis <b>${ft(fmax)}</b> (um ${hMax} Uhr)`, `Feels like <b>${ft(fmin)}</b> (around ${fmtTime(String(hMin).padStart(2, '0') + ':00')}) to <b>${ft(fmax)}</b> (around ${fmtTime(String(hMax).padStart(2, '0') + ':00')})`));
+  if (fmax - fmin >= 8 && o.outer) why.push(tr('große Spanne – <b>Zwiebellook</b>: Jacke zum Ausziehen', 'big range – <b>dress in layers</b>: a jacket you can take off'));
+  if (snowy) why.push(tr('Schnee erwartet', 'snow expected'));
+  else if (rainy) why.push(tr(`Regen wahrscheinlich (${probMax} %, ${mm(rainSum)})`, `rain likely (${probMax} %, ${mm(rainSum)})`));
+  else if (maybeRain) why.push(tr(`vielleicht ein Schauer (${probMax} %)`, `possibly a shower (${probMax} %)`));
+  if (windy) why.push(tr(`windig, Böen bis ${ws(gust)}`, `windy, gusts up to ${ws(gust)}`));
+  if (storm) why.push(tr('<b>Gewitter möglich</b> – im Freien Vorsicht', '<b>thunderstorms possible</b> – take care outdoors'));
+  if (uv >= 6) why.push(tr(`hoher UV-Index (${r0(uv)})`, `high UV index (${r0(uv)})`));
+  // regionale Note
+  let flair = '';
+  if (mountain) flair = tr(`⛰️ Höhenlage (${Math.round(elev)} m): Das Wetter schlägt schnell um – eine Schicht mehr und eine Regenjacke im Rucksack.`, `⛰️ High altitude (${Math.round(elev)} m): the weather can turn quickly – add a layer and pack a rain jacket.`);
+  else if (coast && (rainy || windy)) { flair = tr('🌊 Küstenwetter: Ein echter <b>Friesennerz</b> hält Wind und Regen ab – Schirme haben hier wenig Freude.', '🌊 Coastal weather: a proper yellow <b>oilskin</b> keeps out wind and rain – umbrellas don\'t last long here.'); o.outer = o.outer === 'parka' ? 'parka' : 'rain'; o.umbrella = 0;
+    for (let j = items.length - 1; j >= 0; j--) if (items[j][0] === '☂️') items.splice(j, 1);
+    if (o.outer === 'rain') { const j = items.findIndex(x => x[0] === '🧥'); if (j >= 0) items[j] = ['🧥', tr('Friesennerz oder wind- und wasserdichte Jacke', 'Oilskin or wind- and waterproof jacket')]; } }
+  else if (alpine && dry && fmin > 5 && fmax < 19) { flair = tr('🌲 Regionaler Tipp: Ein <b>Trachtenjanker</b> aus Loden ist bei diesem Wetter genau richtig.', '🌲 Regional tip: a traditional Alpine <b>loden jacket</b> is just right in this weather.'); o.loden = 1; if (o.outer === 'light' || !o.outer) o.outer = 'light'; }
+  else if (south && fmax >= 26) flair = tr('☀️ Südliches Flair: Leinen und helle Farben halten kühl – und für Kirchenbesuche Schultern bedecken.', '☀️ Southern style: linen and light colours keep you cool – and cover your shoulders for church visits.');
+  return { o, items, why, flair, date };
+}
+/* Modepuppe als SVG: Körper + Kleidungsschichten */
+function dollSVG(o) {
+  const f = o.g === 'f', skin = '#f3c9a8', hairC = f ? '#8a4b2a' : '#4b3621';
+  const pal = f ? { tee: '#ef6f9a', long: '#8e6bd1', sweater: '#d0574e', dress: '#f4a259', skirt: '#5c6bc0', light: o.loden ? '#5a6b3a' : '#4fa3a5', coat: '#b07d56', parka: '#c0392b', pants: '#3f5d8a', warm: '#37474f', scarf: '#f2c14e', hat: '#f2c14e', umb: '#e53977' }
+                : { tee: '#4a90d9', long: '#3d6e9e', sweater: '#2e7d5b', dress: '#4a90d9', skirt: '#3f5d8a', light: o.loden ? '#5a6b3a' : '#6d7f8f', coat: '#455a64', parka: '#1f4e79', pants: '#3f5d8a', warm: '#37474f', scarf: '#c0392b', hat: '#c0392b', umb: '#1f6fd1' };
+  const line = (pts, c, w) => `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const armL = '70,92 57,150 55,198', armR = '130,92 143,150 145,198';
+  let g = '';
+  // Haare hinten (lang)
+  if (f) g += `<path d="M77 46 C74 16 126 16 123 46 L127 96 Q100 104 73 96 Z" fill="${hairC}"/>`;
+  // Beine
+  g += line('91,190 89,316', skin, 15) + line('109,190 111,316', skin, 15);
+  // Unterteil
+  const bottom = o.bottom === 'warmpants' ? pal.warm : pal.pants;
+  if (o.bottom === 'pants' || o.bottom === 'warmpants') g += `<path d="M75 168 L125 168 L124 200 L76 200Z" fill="${bottom}"/>` + line('91,180 89,312', bottom, 21) + line('109,180 111,312', bottom, 21);
+  else if (o.bottom === 'shorts') g += `<path d="M75 168 L125 168 L127 228 L102 228 L100 205 L98 228 L73 228Z" fill="#c9a66b"/>`;
+  else if (o.bottom === 'skirt') g += `<path d="M76 166 L124 166 L136 238 L64 238Z" fill="${pal.skirt}"/>`;
+  // Schuhe
+  const shoe = { sneakers: ['#ffffff', '#9aa7b4'], sandals: ['#c48a4a', '#8a5a2a'], boots: ['#6d4c41', '#4e342e'], winterboots: ['#5d4037', '#3e2723'], rubber: ['#f2c14e', '#c99a1e'] }[o.shoes] || ['#555', '#333'];
+  [[87, 0], [113, 1]].forEach(([x, r]) => {
+    if (o.shoes === 'sandals') g += `<ellipse cx="${x}" cy="324" rx="12" ry="5" fill="${shoe[0]}"/><path d="M${x - 7} 318 L${x + 7} 322 M${x + 7} 316 L${x - 6} 322" stroke="${shoe[1]}" stroke-width="3"/>`;
+    else if (o.shoes === 'sneakers') g += `<path d="M${x - 11} 312 h22 v8 a5 5 0 0 1 -5 5 h-${r ? 14 : 14} a8 8 0 0 1 -8 -8z" fill="${shoe[0]}" stroke="${shoe[1]}" stroke-width="2"/><path d="M${x - 9} 323 h18" stroke="${shoe[1]}" stroke-width="3"/>`;
+    else { const top = o.shoes === 'rubber' ? 270 : o.shoes === 'winterboots' ? 282 : 290; g += `<path d="M${x - 10} ${top} h20 v42 a5 5 0 0 1 -5 5 h-16 a6 6 0 0 1 -5 -6z" fill="${shoe[0]}" stroke="${shoe[1]}" stroke-width="2"/>`;
+      if (o.shoes === 'winterboots') g += `<rect x="${x - 12}" y="${top - 6}" width="24" height="10" rx="5" fill="#eee"/>`; }
+  });
+  // Arme (Haut)
+  g += line(armL, skin, 13) + line(armR, skin, 13);
+  // Oberteil bzw. Kleid
+  const torso = f ? 'M70 84 Q100 77 130 84 L122 130 L126 176 Q100 181 74 176 L78 130 Z' : 'M68 84 Q100 76 132 84 L127 176 Q100 181 73 176 Z';
+  if (o.bottom === 'dress') g += `<path d="M70 84 Q100 77 130 84 L122 130 L140 252 Q100 260 60 252 L78 130Z" fill="${pal.dress}"/><path d="M78 130 L122 130" stroke="#fff" stroke-opacity=".5" stroke-width="3"/>`;
+  else g += `<path d="${torso}" fill="${pal[o.top]}"/>`;
+  const sleeve = o.bottom === 'dress' ? pal.dress : pal[o.top];
+  if (o.top === 'tee' || o.bottom === 'dress') g += line('70,92 62,122', sleeve, 17) + line('130,92 138,122', sleeve, 17);
+  else g += line(armL, sleeve, o.top === 'sweater' ? 19 : 16) + line(armR, sleeve, o.top === 'sweater' ? 19 : 16);
+  if (o.top === 'sweater' && o.bottom !== 'dress') g += `<path d="M86 80 Q100 92 114 80" stroke="#fff" stroke-opacity=".45" stroke-width="5" fill="none"/>`;
+  // Jacke / Mantel
+  if (o.outer) {
+    const c = o.outer === 'rain' ? '#f2c94c' : pal[o.outer] || pal.light;
+    const len = o.outer === 'light' ? 184 : o.outer === 'parka' ? 240 : 250;
+    if (o.outer === 'rain') g += `<path d="M66 84 Q100 75 134 84 L142 ${len} Q100 258 58 ${len}Z" fill="${c}"/><path d="M100 86 V${len}" stroke="#c99a1e" stroke-width="2"/>`;
+    else {
+      g += `<path d="M66 84 Q84 79 97 82 L95 ${len} L62 ${len - 2} Z" fill="${c}"/><path d="M134 84 Q116 79 103 82 L105 ${len} L138 ${len - 2} Z" fill="${c}"/>`;
+      if (o.outer === 'parka') for (let y = 110; y < len; y += 26) g += `<path d="M64 ${y} L96 ${y + 1} M104 ${y + 1} L136 ${y}" stroke="#000" stroke-opacity=".15" stroke-width="2"/>`;
+      if (o.outer === 'coat') g += [110, 140, 170].map(y => `<circle cx="99" cy="${y}" r="2.5" fill="#3e2723"/>`).join('') + `<path d="M64 168 L136 168" stroke="#000" stroke-opacity=".18" stroke-width="5"/>`;
+      if (o.loden) g += `<path d="M96 84 L94 ${len} M104 84 L106 ${len}" stroke="#2e3b1c" stroke-width="2.5"/>` + [105, 125, 145, 165].map(y => `<circle cx="93" cy="${y}" r="2.4" fill="#d4b26a"/>`).join('');
+    }
+    g += line(armL, c, 18) + line(armR, c, 18);
+    if (o.outer === 'parka') g += `<ellipse cx="100" cy="80" rx="30" ry="9" fill="#e8e1d5"/>`;
+  }
+  // Hände, Handschuhe
+  const hand = o.gloves ? pal.scarf : skin;
+  g += `<circle cx="55" cy="200" r="7" fill="${hand}"/><circle cx="145" cy="200" r="7" fill="${hand}"/>`;
+  // Hals + Schal
+  g += `<rect x="94" y="64" width="12" height="16" fill="${skin}"/>`;
+  if (o.scarf) g += `<path d="M82 76 Q100 90 118 76 L120 86 Q100 100 80 86Z" fill="${pal.scarf}"/><rect x="104" y="86" width="9" height="42" rx="3" fill="${pal.scarf}"/>`;
+  // Kapuze (bei Sturm) hinter dem Kopf
+  if (o.hood) g += `<path d="M73 52 C70 12 130 12 127 52 L124 76 L76 76Z" fill="${o.outer === 'rain' ? '#f2c94c' : (pal[o.outer] || pal.light)}"/>`;
+  // Kopf + Gesicht
+  g += `<circle cx="100" cy="46" r="22" fill="${skin}"/><circle cx="92.5" cy="47" r="2.2" fill="#3b2a1a"/><circle cx="107.5" cy="47" r="2.2" fill="#3b2a1a"/>
+    <path d="M94 56 Q100 61 106 56" stroke="#b5523b" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="88" cy="54" r="3" fill="#f19a8a" opacity=".5"/><circle cx="112" cy="54" r="3" fill="#f19a8a" opacity=".5"/>`;
+  // Haare vorne
+  if (!o.hood) g += f ? `<path d="M78 42 C80 18 120 18 122 42 C114 30 90 28 78 42Z" fill="${hairC}"/>` : `<path d="M78 44 C76 18 124 18 122 44 C118 32 104 29 96 31 C88 32 82 37 78 44Z" fill="${hairC}"/>`;
+  // Kopfbedeckung
+  if (o.hat === 'beanie' && !o.hood) g += `<path d="M77 40 C77 14 123 14 123 40Z" fill="${pal.hat}"/><rect x="76" y="34" width="48" height="8" rx="4" fill="#fff" opacity=".6"/><circle cx="100" cy="14" r="6" fill="#fff"/>`;
+  if (o.hat === 'sunhat') g += `<ellipse cx="100" cy="31" rx="40" ry="8" fill="#e9d29a"/><path d="M83 31 C83 12 117 12 117 31Z" fill="#e9d29a"/><path d="M83 28 H117" stroke="${pal.dress}" stroke-width="4"/>`;
+  if (o.hat === 'cap') g += `<path d="M78 36 C78 16 122 16 122 36Z" fill="${pal.tee}"/><path d="M100 36 Q124 34 136 40 Q118 42 100 40Z" fill="${pal.tee}"/>`;
+  // Sonnenbrille
+  if (o.glasses) g += `<rect x="85" y="42" width="13" height="8" rx="3" fill="#222"/><rect x="102" y="42" width="13" height="8" rx="3" fill="#222"/><path d="M98 45 H102" stroke="#222" stroke-width="2"/>`;
+  // Regenschirm in der rechten Hand
+  if (o.umbrella) g += `<path d="M146 196 L152 34" stroke="#555" stroke-width="3"/><path d="M106 40 Q152 -14 198 40 Q186 32 175 40 Q163 32 152 40 Q140 32 129 40 Q118 32 106 40Z" fill="${pal.umb}"/><path d="M146 196 q0 10 -8 8" fill="none" stroke="#555" stroke-width="3"/>`;
+  return `<svg viewBox="0 0 200 340" role="img" aria-label="${tr('Modepuppe mit Outfit-Vorschlag', 'Fashion doll showing the suggested outfit')}">${g}</svg>`;
+}
+function outfitHTML(i) {
+  const r = outfitFor(i);
+  if (!r) return `<div class="pad" style="color:var(--muted)">${tr('Für diesen Tag gibt es noch keine stündliche Vorhersage.', 'No hourly forecast for this day yet.')}</div>`;
+  return `<div class="outfit"><div class="doll">${dollSVG(r.o)}</div>
+    <ul>${r.items.map(([ico, t]) => `<li><span>${ico}</span>${esc(t)}</li>`).join('')}</ul>
+    <div class="why">${r.why.join(' · ')}</div>${r.flair ? `<div class="flair">${r.flair}</div>` : ''}</div>`;
+}
+let outfitDay = 0;
+function showOutfit(i) {
+  outfitDay = i;
+  const D = state.data.daily, n = Math.min(D.time.length, 16);
+  $('#outfitBox').innerHTML = `<div class="hd"><div><b>👗 ${tr('Was ziehe ich an?', 'What to wear?')}</b><small>${dayName(D.time[i], i, true)}, ${dshort(D.time[i])} · ${esc(state.loc.name)}</small></div>
+    ${genderSwitch()}
+    <button class="icon-btn" id="outfitClose" aria-label="${tr('Schließen', 'Close')}" style="color:var(--text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    ${outfitHTML(i)}
+    <div class="saying" style="padding-top:0"><div class="nav"><button id="ofPrev" ${i <= 0 ? 'disabled' : ''}>‹ ${tr('Vortag', 'Previous')}</button><span></span><button id="ofNext" ${i >= n - 1 ? 'disabled' : ''}>${tr('Folgetag', 'Next')} ›</button></div></div>`;
+  $('#outfitSheet').classList.add('open');
+  $('#outfitClose').onclick = () => $('#outfitSheet').classList.remove('open');
+  $('#ofPrev').onclick = () => showOutfit(i - 1);
+  $('#ofNext').onclick = () => showOutfit(i + 1);
+}
+function setGender(g) {
+  if (g === GENDER) return;
+  GENDER = g; store.set('outfitG', g);
+  if ($('#outfitSheet').classList.contains('open')) showOutfit(outfitDay);
+  if (state.view === 'today') render();
+}
+$('#outfitSheet').addEventListener('click', e => {
+  if (e.target.id === 'outfitSheet') { $('#outfitSheet').classList.remove('open'); return; }
+  const b = e.target.closest('[data-g]'); if (b) setGender(b.dataset.g);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#outfitSheet').classList.remove('open'); });
 
 /* ---------- Bauernregel des Tages (mit Augenzwinkern) ----------
    Jeder Kalendertag bekommt seinen eigenen Spruch; aufeinanderfolgende Tage haben nie denselben. */
@@ -1559,6 +1768,8 @@ function render() {
 $('#main').onclick = e => {
   if (state.view === 'favs') { favClick(e); return; }
   if (state.view === 'settings') { settingsClick(e); return; }
+  const gb = e.target.closest('[data-g]'); if (gb) { setGender(gb.dataset.g); return; }
+  const ob = e.target.closest('[data-outfit]'); if (ob) { e.stopPropagation(); showOutfit(+ob.dataset.outfit); return; }
   const pol = e.target.closest('[data-pollen]');
   if (pol) { e.stopPropagation(); showPollen(pol.dataset.pollen); return; }
   const t = e.target.closest('[data-day]'); if (!t) return;

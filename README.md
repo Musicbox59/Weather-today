@@ -11,6 +11,7 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 - **Favoriten sichern**: als Datei (JSON) herunterladen und wiederherstellen oder als Sicherungs-Link (Lesezeichen) aufbewahren
 - Ansichten: **Heute** (aktuell, Tagesverlauf, stündlich), **3 Tage**, **7 Tage**, **21 Tage**, **Radar**
 - **Hinweis für Allergiker**: Pollenflug von heute auf der Startseite; Wetter-Symbol eines Tages antippen zeigt die Pollenbelastung (Erle, Birke, Gräser, Beifuß, Ambrosia, Olive) für diesen Tag – Europa, ca. 3 Tage voraus
+- **Was ziehe ich an?** – Outfit-Vorschlag für jeden Tag als Modepuppe (Frau/Mann umschaltbar): berücksichtigt gefühlte Temperatur im Tagesverlauf, Regen, Schnee, Wind, UV sowie die Region (Höhenlage, Alpenraum mit Trachtenjanker, Küste mit Friesennerz, Süden)
 - **Bauernregel des Tages**: halbtransparentes Symbol rechts unten öffnet einen augenzwinkernden Wetterspruch (60 Sprüche, Deutsch und Englisch, jeder Tag ein anderer; Vortag/Folgetag durchblättern)
 - **Niederschlagsradar**: in Deutschland automatisch das DWD-Radar (1 km), weltweit RainViewer – umschaltbar; animierte 2D-Karte (ca. letzte 2 Stunden + Kurzfrist-Prognose, falls verfügbar) mit Markierung der aktuellen Position, Zeitleiste und Play/Pause
 - Darstellung angelehnt an klassische Wetterportale: Symbole, rote Höchst-/blaue Tiefstwerte, Temperaturkurven, Regenwahrscheinlichkeit
