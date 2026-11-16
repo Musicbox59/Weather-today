@@ -256,6 +256,11 @@
   .r-legend summary{cursor:pointer;color:var(--blue);font-weight:600}
   .r-legend details img{display:block;max-width:100%;max-height:320px;margin-top:8px}
   .r-legend i{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#9be1ff,#00a3e0,#0050c8,#e8d100,#ff8a00,#e00000,#c800c8)}
+  .fav-pin{display:flex;align-items:center;gap:4px;white-space:nowrap;transform:translate(-13px,-13px);cursor:pointer}
+  .fav-pin i{flex:none;width:26px;height:26px;border-radius:50%;background:#ffc107;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:grid;place-items:center;font-style:normal;font-size:15px;color:#7a4b00;line-height:1}
+  .fav-pin b{background:rgba(255,255,255,.95);color:#1d2733;font:600 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:3px 7px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .fav-pin.cur i{background:#d7262f;color:#fff}
+  .fav-pin:hover b{background:var(--blue);color:#fff}
   .me-dot{width:18px;height:18px;border-radius:50%;background:#d7262f;border:3px solid #fff;box-shadow:0 0 0 0 rgba(215,38,47,.6);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(215,38,47,.55)}70%{box-shadow:0 0 0 16px rgba(215,38,47,0)}100%{box-shadow:0 0 0 0 rgba(215,38,47,0)}}
 
@@ -373,7 +378,7 @@ const dec = (v, n = 1) => { const s = (+v).toFixed(n); return LANG === 'en' ? s 
 const qo = s => tr('„' + s + '“', '“' + s + '”');
 const STATIC = {
   map: ['Karte', 'Map'], tabToday: ['Heute', 'Today'], tab3: ['3 Tage', '3 days'], tab7: ['7 Tage', '7 days'], tab21: ['21 Tage', '21 days'],
-  mapTap: ['Punkt auf der Karte antippen', 'Tap a point on the map'], showWx: ['Wetter anzeigen', 'Show weather']
+  mapTap: ['Punkt antippen – oder ★ Favorit wählen', 'Tap a point – or pick a ★ favourite'], showWx: ['Wetter anzeigen', 'Show weather']
 };
 function applyStatic() {
   document.documentElement.lang = LANG;
@@ -816,7 +821,28 @@ function baseLayer(map, maxZoom) {
   });
   return osm.addTo(map);
 }
-let map, marker, mapPick = null, mapSeq = 0;
+/* Favoriten als ★-Markierungen auf einer Karte; Klick öffnet das heutige Wetter des Favoriten */
+function addFavPins(m, layer) {
+  layer.clearLayers();
+  favs.forEach((f, i) => {
+    const cur = state.loc && key(state.loc) === key(f);
+    const pin = L.marker([f.lat, f.lon], {
+      icon: L.divIcon({ className: '', html: `<div class="fav-pin ${cur ? 'cur' : ''}"><i>★</i><b>${esc(f.name)}</b></div>`, iconSize: [0, 0], iconAnchor: [0, 0] }),
+      title: tr('Heutiges Wetter für ', 'Today\'s weather for ') + f.name, keyboard: true, zIndexOffset: cur ? 900 : 500, riseOnHover: true
+    });
+    pin.on('click', ev => { L.DomEvent.stopPropagation(ev); openFavToday(i); });
+    pin.addTo(layer);
+  });
+  return layer;
+}
+function openFavToday(i) {
+  const f = favs[i]; if (!f) return;
+  $('#mapModal').classList.remove('open');
+  state.view = 'today'; state.sel = null; store.set('view', 'today');
+  window.scrollTo(0, 0);
+  loadLocation(f);
+}
+let map, marker, mapPick = null, mapSeq = 0, mapFavLayer = null;
 $('#mapBtn').onclick = () => {
   if (!window.L) { toast(tr('Karte wird noch geladen …', 'Map is still loading …')); return; }
   $('#mapModal').classList.add('open');
@@ -837,7 +863,16 @@ $('#mapBtn').onclick = () => {
       $('#mapInfo').innerHTML = `<b>${esc(n.name)}</b><small>${esc(n.sub)}</small>`;
     });
   } else map.setView(c, Math.max(map.getZoom(), 6));
-  setTimeout(() => map.invalidateSize(), 50);
+  // Favoriten markieren und – falls vorhanden – den Ausschnitt so wählen, dass alle sichtbar sind
+  if (!mapFavLayer) mapFavLayer = L.layerGroup().addTo(map);
+  addFavPins(map, mapFavLayer);
+  setTimeout(() => {
+    map.invalidateSize();
+    if (favs.length) {
+      const pts = favs.map(f => [f.lat, f.lon]); if (state.loc) pts.push([state.loc.lat, state.loc.lon]);
+      map.fitBounds(L.latLngBounds(pts), { padding: [50, 50], maxZoom: 9 });
+    }
+  }, 60);
 };
 $('#mapClose').onclick = () => $('#mapModal').classList.remove('open');
 $('#mapGo').onclick = () => {
@@ -1084,6 +1119,7 @@ function initRadar() {
   map.setMinZoom(3); map.setMaxZoom(12);
   baseLayer(map, 12);
   L.marker([loc.lat, loc.lon], { icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
+  addFavPins(map, L.layerGroup().addTo(map));
   radar = { map, src: radarSrc(), frames: [], layers: {}, idx: 0, nowIdx: 0, playing: false, anim: null, refresh: null, host: '' };
   $('#rMe').onclick = () => map.setView([loc.lat, loc.lon], Math.max(map.getZoom(), 8));
   $('#rPlay').onclick = () => radarPlay(!radar.playing);
