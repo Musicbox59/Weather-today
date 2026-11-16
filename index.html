@@ -878,12 +878,12 @@ function segments(date) {
     const temps = pick('temperature_2m'), codes = pick('weather_code'), pp = pick('precipitation_probability'), pr = pick('precipitation'), ws = pick('wind_speed_10m');
     if (!temps.length || !codes.length) return null;
     const mid = idx[Math.floor(idx.length / 2)];
-    return { lbl, t: lbl === 'night' ? Math.min(...temps) : Math.max(...temps), code: segCode(codes), day: H.is_day[mid],
+    return { lbl, h0: a, h1: b, t: lbl === 'night' ? Math.min(...temps) : Math.max(...temps), code: segCode(codes), day: H.is_day[mid],
       prob: pp.length ? Math.max(...pp) : null, rain: pr.reduce((a, b) => a + b, 0), wind: ws.length ? Math.max(...ws) : null, dir: H.wind_direction_10m[mid] };
   });
 }
 function segsHTML(date) {
-  return `<div class="segs">${segments(date).map(s => s ? `<div><div class="lbl">${segLabel(s.lbl)}</div>${icon(s.code, s.day, 46)}<div class="t">${tp(s.t)}°</div>
+  return `<div class="segs">${segments(date).map(s => s ? `<div><div class="lbl">${segLabel(s.lbl)}</div>${polIcon(date, icon(s.code, s.day, 46), s.h0, s.h1)}<div class="t">${tp(s.t)}°</div>
     <div class="r">${s.prob != null ? s.prob + ' %' : ''}${s.rain >= 0.1 ? ' · ' + mm(s.rain) : ''}</div>
     <div class="w">${arrow(s.dir)} ${ws(s.wind)}</div></div>` : '<div></div>').join('')}</div>`;
 }
@@ -955,7 +955,7 @@ function viewToday() {
   <div class="card"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
       <div class="hrow time">${idx.map((i, k) => cell(k === 0 ? tr('Jetzt', 'Now') : hourLbl(H.time[i]), i, k)).join('')}</div>
-      <div class="hrow">${idx.map((i, k) => cell(icon(H.weather_code[i], H.is_day[i], 38), i, k)).join('')}</div>
+      <div class="hrow">${idx.map((i, k) => cell(polIcon(H.time[i].slice(0, 10), icon(H.weather_code[i], H.is_day[i], 38), +H.time[i].slice(11, 13), +H.time[i].slice(11, 13) + 1), i, k)).join('')}</div>
       ${chart([{ v: idx.map(i => cT(H.temperature_2m[i])), color: '#e0712c' }], idx.length, W, 74)}
       <div class="hrow rain">${idx.map((i, k) => cell((H.precipitation_probability[i] ?? '–') + ' %' + (H.precipitation[i] >= 0.1 ? '<br>' + mm(H.precipitation[i]) : ''), i, k)).join('')}</div>
       <div class="hrow wind">${idx.map((i, k) => cell(arrow(H.wind_direction_10m[i]) + '<br>' + wv(H.wind_speed_10m[i]), i, k)).join('')}</div>
@@ -1225,12 +1225,25 @@ function radarPlay(on) {
 }
 
 /* ---------- Favoriten-Seite ---------- */
-let favWx = { k: '', at: 0, list: null }, favEdit = false;
+let favWx = { k: '', at: 0, list: null }, favEdit = false, favPollen = { k: '', list: {} };
 const favKeyAll = () => favs.map(key).join(';');
+async function loadFavPollen(k) {
+  try {
+    const j = await getJSON(API.air + '?' + qs({
+      latitude: favs.map(f => f.lat.toFixed(4)).join(','), longitude: favs.map(f => f.lon.toFixed(4)).join(','),
+      timezone: 'auto', forecast_days: 1, hourly: POLLEN.map(p => p[0]).join(',') }));
+    if (favKeyAll() !== k) return;
+    const arr = Array.isArray(j) ? j : [j], list = {};
+    favs.forEach((f, i) => { if (arr[i]) list[key(f)] = parsePollen(arr[i], key(f)); });
+    favPollen = { k, list };
+  } catch (e) { favPollen = { k, list: {}, err: true }; }
+  if (state.view === 'favs') render();
+}
 async function loadFavWeather(force) {
   const k = favKeyAll();
   if (!favs.length || (!force && favWx.k === k && Date.now() - favWx.at < 10 * 60000)) return;
   favWx = { k, at: Date.now(), list: null, loading: true };
+  loadFavPollen(k);
   try {
     const j = await getJSON(API.forecast + '?' + qs({
       latitude: favs.map(f => f.lat.toFixed(4)).join(','), longitude: favs.map(f => f.lon.toFixed(4)).join(','),
@@ -1244,6 +1257,11 @@ async function loadFavWeather(force) {
   } catch (e) { if (favWx.k === k) favWx.err = true; }
   favWx.loading = false;
   if (state.view === 'favs') render();
+}
+/* Wetter-Symbol eines Favoriten mit Pollen-Blatt (heutiger Tag am jeweiligen Ort) */
+function favPolIcon(f, i, svg) {
+  const P = favPollen.list[key(f)], date = P && P.hourly && P.hourly.time ? P.hourly.time[0].slice(0, 10) : '';
+  return `<span class="pol-ic" data-favpol="${i}" data-date="${date}" role="button" tabindex="0" title="${tr('Pollenbelastung anzeigen', 'Show pollen levels')}" aria-label="${tr('Pollenbelastung anzeigen', 'Show pollen levels')}">${svg}${leafHTML(date, null, null, P)}</span>`;
 }
 /* Farbe des Balkens nach Temperatur (blau = kalt, rot = warm) */
 const tempColor = t => t == null ? '#ccd' : t <= -10 ? '#5b6ee1' : t <= 0 ? '#3d8ce0' : t <= 10 ? '#45b0c8' : t <= 20 ? '#8cc63f' : t <= 28 ? '#f2b134' : '#e1462f';
@@ -1262,7 +1280,7 @@ function favRow(f, i) {
       + (sun != null ? `<span class="sun">☀ ${dec(sun / 3600)} h ${tr('Sonne', 'sun')}</span>` : '');
   } else meta = `<span>${favWx.loading ? tr('Wetter wird geladen …', 'Loading weather …') : favWx.err ? tr('Wetter nicht verfügbar', 'Weather unavailable') : ''}</span>`;
   return `<div class="fbar ${cur ? 'cur' : ''}" data-open="${i}" style="border-left-color:${tempColor(C && C.temperature_2m)}">
-    <div>${C ? icon(C.weather_code, C.is_day, 50) : icon(3, 1, 50).replace('<svg', '<svg style="opacity:.25"')}</div>
+    <div>${C ? favPolIcon(f, i, icon(C.weather_code, C.is_day, 50)) : icon(3, 1, 50).replace('<svg', '<svg style="opacity:.25"')}</div>
     <div class="fn"><b>${esc(f.name)}</b><small>${C ? esc(desc(C.weather_code, C.is_day)) + ' · ' : ''}${esc(f.sub || '')}</small></div>
     <div class="ft">${C ? tp(C.temperature_2m) + '°' : '–'}${D ? `<small><span style="color:var(--max)">${tp(D.temperature_2m_max[0])}°</span> / <span style="color:var(--min)">${tp(D.temperature_2m_min[0])}°</span></small>` : ''}</div>
     <div class="fm">${meta}</div>
@@ -1347,6 +1365,8 @@ function favClick(e) {
     if (d.ren != null) { const f = favs[+d.ren], n = prompt(tr('Neuer Name für ' + qo(f.name) + ':', 'New name for ' + qo(f.name) + ':'), f.name); if (n && n.trim()) { f.name = n.trim().slice(0, 80); saveFavs(); render(); } return true; }
     if (d.del != null) { const f = favs[+d.del]; if (confirm(tr(qo(f.name) + ' aus den Favoriten löschen?', 'Delete ' + qo(f.name) + ' from favourites?'))) { favs.splice(+d.del, 1); saveFavs(); favWx.k = favKeyAll(); render(); } return true; }
   }
+  const fp = e.target.closest('[data-favpol]');
+  if (fp) { showPollen(fp.dataset.date, null, null, +fp.dataset.favpol); return true; }
   const row = e.target.closest('[data-open]');
   if (row && !favEdit) { openFav(+row.dataset.open); return true; }
   return false;
@@ -1383,38 +1403,62 @@ async function loadPollen() {
   try {
     const j = await getJSON(API.air + '?' + qs({ latitude: loc.lat, longitude: loc.lon, timezone: 'auto', forecast_days: 5, hourly: POLLEN.map(p => p[0]).join(',') }));
     if (!state.pollen || state.pollen.k !== k) return;
-    const H = j.hourly || {}, days = {};
-    (H.time || []).forEach((t, i) => {
-      const d = t.slice(0, 10), o = days[d] || (days[d] = { n: 0, max: {}, peak: {} });
-      let any = false;
-      POLLEN.forEach(([id]) => {
-        const v = H[id] && H[id][i];
-        if (v == null) return;
-        any = true;
-        if (o.max[id] == null || v > o.max[id]) { o.max[id] = v; o.peak[id] = t.slice(11, 16); }
-      });
-      if (any) o.n++;
-    });
-    // nur Tage mit ausreichend Stundenwerten gelten als vorhergesagt
-    Object.keys(days).forEach(d => { if (days[d].n < 12) delete days[d]; });
-    state.pollen = { k, days };
+    state.pollen = parsePollen(j, k);
   } catch (e) { if (state.pollen && state.pollen.k === k) state.pollen = { k, days: {}, err: true }; }
   // Anzeige aktualisieren (Blatt-Symbole, Allergiker-Hinweis), ohne die Seite neu aufzubauen
-  document.querySelectorAll('.pol-ic').forEach(el => { const l = el.querySelector('.leaf'); if (l) l.outerHTML = leafHTML(el.dataset.pollen); });
+  refreshLeaves();
   const ac = $('#allergyCard'); if (ac) ac.innerHTML = allergyHTML();
-  if ($('#pollenSheet').classList.contains('open') && state.pollenDate) showPollen(state.pollenDate);
+  reopenPollen();
 }
-function pollenDay(date) {
-  const P = state.pollen; if (!P || !P.days || !P.days[date]) return null;
+/* Antwort des Pollendienstes in Tageswerte (Höchstwert + Uhrzeit) und Stundenwerte aufbereiten */
+function parsePollen(j, k) {
+  const H = (j && j.hourly) || {}, days = {};
+  (H.time || []).forEach((t, i) => {
+    const d = t.slice(0, 10), o = days[d] || (days[d] = { n: 0, max: {}, peak: {} });
+    let any = false;
+    POLLEN.forEach(([id]) => {
+      const v = H[id] && H[id][i];
+      if (v == null) return;
+      any = true;
+      if (o.max[id] == null || v > o.max[id]) { o.max[id] = v; o.peak[id] = t.slice(11, 16); }
+    });
+    if (any) o.n++;
+  });
+  // nur Tage mit ausreichend Stundenwerten gelten als vorhergesagt
+  Object.keys(days).forEach(d => { if (days[d].n < 12) delete days[d]; });
+  return { k, days, hourly: H };
+}
+/* höchste Stufe aller Pollenarten in einem Stundenbereich [h0, h1) eines Tages; -1 = keine Daten */
+function pollenRange(P, date, h0, h1) {
+  const H = P && P.hourly; if (!H || !H.time) return -1;
+  let max = -1;
+  H.time.forEach((t, i) => {
+    if (!t.startsWith(date)) return;
+    const h = +t.slice(11, 13); if (h < h0 || h >= h1) return;
+    POLLEN.forEach(([id, kind]) => { const v = H[id] && H[id][i]; if (v != null) max = Math.max(max, plLevel(v, kind)); });
+  });
+  return max;
+}
+function refreshLeaves() {
+  document.querySelectorAll('.pol-ic[data-pollen]').forEach(el => {
+    const l = el.querySelector('.leaf'); if (!l) return;
+    l.outerHTML = leafHTML(el.dataset.pollen, el.dataset.h0, el.dataset.h1);
+  });
+}
+function pollenDay(date, P = state.pollen) {
+  if (!P || !P.days || !P.days[date]) return null;
   const o = P.days[date];
   return POLLEN.map(([id, kind]) => ({ id, name: polName(id), kind, v: o.max[id], peak: o.peak[id], lvl: plLevel(o.max[id], kind) })).filter(x => x.lvl >= 0);
 }
 const leafSVG = c => `<svg viewBox="0 0 24 24"><path d="M5 19c0-8 5-14 15-15-1 10-7 15-15 15z" fill="${c}"/><path d="M5 19L14 10" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
-function leafHTML(date) {
-  const d = pollenDay(date), max = d && d.length ? Math.max(...d.map(x => x.lvl)) : -1;
+/* Blatt-Symbol: Farbe nach der höchsten Pollenstufe des Tages bzw. – mit h0/h1 – der Stunde oder des Tagesabschnitts */
+function leafHTML(date, h0, h1, P = state.pollen) {
+  let max;
+  if (h0 != null && h0 !== '') max = pollenRange(P, date, +h0, +h1);
+  else { const d = pollenDay(date, P); max = d && d.length ? Math.max(...d.map(x => x.lvl)) : -1; }
   return `<span class="leaf" title="${max >= 0 ? 'Pollen: ' + plLv(max) : tr('Pollenbelastung', 'Pollen levels')}">${leafSVG(max >= 0 ? PL_COL[max] : '#b9c4cf')}</span>`;
 }
-const polIcon = (date, svg) => `<span class="pol-ic" data-pollen="${date}" role="button" tabindex="0" title="${tr('Pollenbelastung anzeigen', 'Show pollen levels')}" aria-label="${tr('Pollenbelastung für diesen Tag anzeigen', 'Show pollen levels for this day')}">${svg}${leafHTML(date)}</span>`;
+const polIcon = (date, svg, h0, h1) => `<span class="pol-ic" data-pollen="${date}"${h0 != null ? ` data-h0="${h0}" data-h1="${h1}"` : ''} role="button" tabindex="0" title="${tr('Pollenbelastung anzeigen', 'Show pollen levels')}" aria-label="${tr('Pollenbelastung anzeigen', 'Show pollen levels')}">${svg}${leafHTML(date, h0, h1)}</span>`;
 function allergyHTML() {
   const P = state.pollen, today = state.data && state.data.daily.time[0];
   let txt;
@@ -1430,11 +1474,13 @@ function allergyHTML() {
     }
   }
   return `<div class="allergy"><div class="ico">🌿</div><div><b>${tr('Hinweis für Allergiker', 'Note for allergy sufferers')}</b><div>${txt}</div>
-    <small>${tr('Tipp: Wetter-Symbol eines Tages antippen – dann wird die Pollenbelastung angezeigt.', 'Tip: tap the weather symbol of a day to see its pollen levels.')}</small></div></div>`;
+    <small>${tr('Tipp: Ein Wetter-Symbol mit 🍃 antippen – dann wird die Pollenbelastung angezeigt (für den Tag, den Tagesabschnitt oder die Stunde).', 'Tip: tap any weather symbol with a 🍃 to see the pollen levels (for the day, part of day or hour).')}</small></div></div>`;
 }
-function showPollen(date) {
-  state.pollenDate = date;
-  const d = pollenDay(date), P = state.pollen;
+function showPollen(date, h0, h1, favIdx) {
+  state.pollenCtx = { date, h0, h1, favIdx };
+  const fav = favIdx != null ? favs[favIdx] : null;
+  const P = fav ? favPollen.list[key(fav)] : state.pollen;
+  const d = pollenDay(date, P);
   const idx = state.data ? state.data.daily.time.indexOf(date) : -1;
   const title = (idx >= 0 ? dayName(date, idx, true) + ', ' : '') + dshort(date);
   let body;
@@ -1447,7 +1493,12 @@ function showPollen(date) {
       : tr('Für diesen Ort gibt es keine Pollenvorhersage – sie ist nur für Europa verfügbar.', 'There is no pollen forecast for this place – it is only available for Europe.')}</div>`;
   } else {
     const max = Math.max(...d.map(x => x.lvl));
-    body = `<div class="pad" style="padding-bottom:6px">${tr('Gesamt', 'Overall')}: <span class="lv" style="background:${PL_COL[max]}">${plLv(max)}</span>${max === 0 ? tr(' – derzeit kein nennenswerter Pollenflug.', ' – no significant pollen at the moment.') : ''}</div>`
+    let part = '';
+    if (h0 != null && h0 !== '') {
+      const lv = pollenRange(P, date, +h0, +h1), hh = h => withUhr(String(h % 24).padStart(2, '0') + ':00');
+      if (lv >= 0) part = `<div class="pad" style="padding-bottom:0">${+h1 - +h0 === 1 ? hh(+h0) : hh(+h0) + ' – ' + hh(+h1)}: <span class="lv" style="background:${PL_COL[lv]}">${plLv(lv)}</span></div>`;
+    }
+    body = part + `<div class="pad" style="padding-bottom:6px">${tr('Ganzer Tag', 'Whole day')}: <span class="lv" style="background:${PL_COL[max]}">${plLv(max)}</span>${max === 0 ? tr(' – derzeit kein nennenswerter Pollenflug.', ' – no significant pollen at the moment.') : ''}</div>`
       + d.map(x => `<div class="prow"><div><b>${x.name}</b></div>
         <div class="bar"><i style="width:${x.lvl <= 0 ? 0 : x.lvl * 25}%;background:${PL_COL[x.lvl]}"></i></div>
         <div class="val"><b style="color:${PL_COL[x.lvl]}">${plLv(x.lvl)}</b>${x.v >= 1 ? Math.round(x.v) + ' /m³' + (x.peak ? ' · ' + fmtTime(x.peak) : '') : ''}</div></div>`).join('')
@@ -1455,17 +1506,21 @@ function showPollen(date) {
           `<b>Tips for pollen allergy:</b><ul><li>In cities, air rooms early in the morning; in the countryside, rather in the evening.</li><li>Wash your hair after being outdoors and don't leave your clothes in the bedroom.</li><li>Rain temporarily washes pollen out of the air.</li></ul>`) : ''}
         ${tr('Werte: Tageshöchstwert in Pollen pro m³ Luft, mit Uhrzeit des Höchstwerts. Einstufung nach gängigen Richtwerten; Hasel ist nicht enthalten. Kein Ersatz für ärztlichen Rat.', 'Values: daily maximum in pollen grains per m³ of air, with the time of the peak. Levels based on common reference values; hazel is not included. Not a substitute for medical advice.')}</div>`;
   }
-  $('#pollenBox').innerHTML = `<div class="hd"><div><b>🌿 ${tr('Pollenbelastung', 'Pollen levels')}</b><small>${esc(title)} · ${esc(state.loc ? state.loc.name : '')}</small></div>
+  $('#pollenBox').innerHTML = `<div class="hd"><div><b>🌿 ${tr('Pollenbelastung', 'Pollen levels')}</b><small>${esc(title)} · ${esc(fav ? fav.name : state.loc ? state.loc.name : '')}</small></div>
     <button class="icon-btn" id="pollenClose" aria-label="${tr('Schließen', 'Close')}" style="color:var(--text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>${body}`;
   $('#pollenSheet').classList.add('open');
   $('#pollenClose').onclick = closePollen;
-  if (!P) loadPollen();
+  if (!P && !fav) loadPollen();
 }
-function closePollen() { $('#pollenSheet').classList.remove('open'); state.pollenDate = null; }
+function reopenPollen() {
+  const c = state.pollenCtx;
+  if (c && $('#pollenSheet').classList.contains('open')) showPollen(c.date, c.h0, c.h1, c.favIdx);
+}
+function closePollen() { $('#pollenSheet').classList.remove('open'); state.pollenCtx = null; }
 $('#pollenSheet').addEventListener('click', e => { if (e.target.id === 'pollenSheet') closePollen(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closePollen();
-  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('pol-ic')) { e.preventDefault(); showPollen(e.target.dataset.pollen); }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('pol-ic')) { e.preventDefault(); e.target.click(); }
 });
 
 /* ---------- Einstellungen ---------- */
@@ -1500,7 +1555,7 @@ function setLang(l) {
   LANG = l; store.set('lang', LANG);
   sug.classList.remove('open');
   applyStatic(); renderHeader(); render();
-  if ($('#pollenSheet').classList.contains('open') && state.pollenDate) showPollen(state.pollenDate);
+  reopenPollen();
   if ($('#sayingSheet').classList.contains('open')) showSaying();
   if ($('#outfitSheet').classList.contains('open')) showOutfit(outfitDay);
 }
@@ -1771,7 +1826,7 @@ $('#main').onclick = e => {
   const gb = e.target.closest('[data-g]'); if (gb) { setGender(gb.dataset.g); return; }
   const ob = e.target.closest('[data-outfit]'); if (ob) { e.stopPropagation(); showOutfit(+ob.dataset.outfit); return; }
   const pol = e.target.closest('[data-pollen]');
-  if (pol) { e.stopPropagation(); showPollen(pol.dataset.pollen); return; }
+  if (pol) { e.stopPropagation(); showPollen(pol.dataset.pollen, pol.dataset.h0, pol.dataset.h1); return; }
   const t = e.target.closest('[data-day]'); if (!t) return;
   const i = +t.dataset.day;
   state.sel = (state.view === '21' && state.sel === i) ? null : i;
