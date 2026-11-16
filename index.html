@@ -1651,51 +1651,93 @@ function togglePage(page) {
 $('#setBtn').onclick = () => togglePage('settings');
 $('#climBtn').onclick = () => togglePage('climate');
 
-/* ---------- Klima-Cockpit: historische Daten (Open-Meteo Archiv, ERA5-Reanalyse, Tageswerte) ---------- */
-const CLIM = { cache: {}, pending: {}, years: store.get('climYears', 30), mode: store.get('climMode', 'year') };
+/* ---------- Klima-Cockpit: historische Daten (Open-Meteo Archiv, ERA5-Reanalyse, Tageswerte ab 1940) ----------
+   Die Tageswerte werden je Ort einmal geladen (für den längsten gewählten Zeitraum) und für kürzere Zeiträume wiederverwendet. */
+const CLIM = { raw: {}, pending: {}, agg: {}, years: store.get('climYears', 30), mode: store.get('climMode', 'year'), sec: store.get('climSec', 'klima') };
+const climRange = () => { const endY = new Date().getFullYear() - 1; return { startY: endY - CLIM.years + 1, endY }; };
 const climKey = () => key(state.loc) + '|' + CLIM.years;
 function loadClimate() {
-  const k = climKey();
-  if (CLIM.cache[k]) return Promise.resolve(CLIM.cache[k]);
+  const k = climKey(), lk = key(state.loc), { startY, endY } = climRange();
+  if (CLIM.agg[k]) return Promise.resolve(CLIM.agg[k]);
+  const raw = CLIM.raw[lk];
+  if (raw && raw.startY <= startY && raw.endY >= endY) { CLIM.agg[k] = aggClimate(raw.daily, startY, endY); CLIM.agg[k].elev = raw.elev; return Promise.resolve(CLIM.agg[k]); }
   if (CLIM.pending[k]) return CLIM.pending[k];
-  const endY = new Date().getFullYear() - 1, startY = endY - CLIM.years + 1;
   CLIM.pending[k] = getJSON('https://archive-api.open-meteo.com/v1/archive?' + qs({
     latitude: state.loc.lat, longitude: state.loc.lon, start_date: startY + '-01-01', end_date: endY + '-12-31', timezone: 'auto',
-    daily: 'temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,snowfall_sum,wind_gusts_10m_max'
-  })).then(j => { const r = aggClimate(j.daily || {}); r.elev = j.elevation; CLIM.cache[k] = r; return r; })
-    .finally(() => { delete CLIM.pending[k]; });
+    daily: 'temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,snowfall_sum,wind_gusts_10m_max,et0_fao_evapotranspiration'
+  })).then(j => {
+    if (!CLIM.raw[lk] || CLIM.raw[lk].startY > startY) CLIM.raw[lk] = { startY, endY, daily: j.daily || {}, elev: j.elevation };
+    const r = aggClimate(j.daily || {}, startY, endY); r.elev = j.elevation; CLIM.agg[k] = r; return r;
+  }).finally(() => { delete CLIM.pending[k]; });
   return CLIM.pending[k];
 }
-/* Tageswerte zu Jahres- und Monatswerten zusammenfassen. Hitzetag = Höchstwert ≥ 30 °C */
-function aggClimate(D) {
-  const Y = {}, M = Array.from({ length: 12 }, () => ({ tx: 0, tn: 0, tm: 0, n: 0, heat: 0, p: 0, sn: 0, gs: 0, gc: 0 })), ym = {};
+const doyOf = t => Math.round((Date.UTC(+t.slice(0, 4), +t.slice(5, 7) - 1, +t.slice(8, 10)) - Date.UTC(+t.slice(0, 4), 0, 1)) / 86400000) + 1;
+/* Tageswerte zu Jahres- und Monatswerten zusammenfassen.
+   Kenntage: Hitzetag Tmax ≥ 30 °C · Sommertag Tmax ≥ 25 °C · Frosttag Tmin < 0 °C · Eistag Tmax < 0 °C · Tropennacht Tmin ≥ 20 °C ·
+   Starkregentag ≥ 20 mm · Sturmtag Böe ≥ 75 km/h · Trockentag < 1 mm.
+   Heizgradtage G20/15: Summe (20 − Tmittel) über alle Tage mit Tmittel < 15 °C.
+   Vegetationsperiode (ETCCDI): erste 6 Tage in Folge mit Tmittel > 5 °C bis zu den ersten 6 Tagen in Folge mit Tmittel < 5 °C nach dem 1. Juli. */
+function aggClimate(D, startY, endY) {
+  const Y = {}, ym = {};
+  const M = Array.from({ length: 12 }, () => ({ tx: 0, tn: 0, tm: 0, n: 0, heat: 0, p: 0, sn: 0, gs: 0, gc: 0, frost: 0, ice: 0, summer: 0, trop: 0, heavy: 0, storm: 0, hdd: 0, et0: 0 }));
   const rec = { max: null, maxD: '', min: null, minD: '', gust: null, gustD: '' };
   (D.time || []).forEach((t, i) => {
-    const y = +t.slice(0, 4), m = +t.slice(5, 7) - 1;
+    const y = +t.slice(0, 4); if (y < startY || y > endY) return;
+    const m = +t.slice(5, 7) - 1, mo = M[m];
     const tx = D.temperature_2m_max[i], tn = D.temperature_2m_min[i], tmr = D.temperature_2m_mean[i], p = D.precipitation_sum[i], sn = D.snowfall_sum[i], g = D.wind_gusts_10m_max[i];
-    const o = Y[y] || (Y[y] = { y, tx: 0, tn: 0, tm: 0, n: 0, heat: 0, p: 0, sn: 0, gmax: null, gdate: '' });
+    const e0 = D.et0_fao_evapotranspiration ? D.et0_fao_evapotranspiration[i] : null;
+    const o = Y[y] || (Y[y] = { y, tx: 0, tn: 0, tm: 0, n: 0, heat: 0, p: 0, sn: 0, gmax: null, gdate: '', frost: 0, ice: 0, summer: 0, trop: 0, heavy: 0, storm: 0,
+      hdd: 0, et0: 0, e0n: 0, dry: 0, dryMax: 0, dryEnd: '', hw: 0, hwMax: 0, hwEnd: '', lastSpring: null, firstAutumn: null, tmd: [] });
     if (tx != null && tn != null) {
       const tm = tmr != null ? tmr : (tx + tn) / 2;
-      o.tx += tx; o.tn += tn; o.tm += tm; o.n++;
-      M[m].tx += tx; M[m].tn += tn; M[m].tm += tm; M[m].n++;
-      if (tx >= 30) { o.heat++; M[m].heat++; }
+      o.tx += tx; o.tn += tn; o.tm += tm; o.n++; mo.tx += tx; mo.tn += tn; mo.tm += tm; mo.n++;
+      if (tx >= 30) { o.heat++; mo.heat++; o.hw++; if (o.hw > o.hwMax) { o.hwMax = o.hw; o.hwEnd = t; } } else o.hw = 0;
+      if (tx >= 25) { o.summer++; mo.summer++; }
+      if (tn < 0) { o.frost++; mo.frost++; const d = doyOf(t); if (m <= 6) o.lastSpring = d; else if (o.firstAutumn == null) o.firstAutumn = d; }
+      if (tx < 0) { o.ice++; mo.ice++; }
+      if (tn >= 20) { o.trop++; mo.trop++; }
+      if (tm < 15) { o.hdd += 20 - tm; mo.hdd += 20 - tm; }
+      o.tmd.push([doyOf(t), tm]);
       if (rec.max == null || tx > rec.max) { rec.max = tx; rec.maxD = t; }
       if (rec.min == null || tn < rec.min) { rec.min = tn; rec.minD = t; }
     }
-    if (p != null) { o.p += p; M[m].p += p; }
-    if (sn != null) { o.sn += sn; M[m].sn += sn; }
+    if (p != null) {
+      o.p += p; mo.p += p;
+      if (p >= 20) { o.heavy++; mo.heavy++; }
+      if (p < 1) { o.dry++; if (o.dry > o.dryMax) { o.dryMax = o.dry; o.dryEnd = t; } } else o.dry = 0;
+    }
+    if (sn != null) { o.sn += sn; mo.sn += sn; }
+    if (e0 != null) { o.et0 += e0; o.e0n++; mo.et0 += e0; }
     if (g != null) {
+      if (g >= 75) { o.storm++; mo.storm++; }
       if (o.gmax == null || g > o.gmax) { o.gmax = g; o.gdate = t; }
       if (rec.gust == null || g > rec.gust) { rec.gust = g; rec.gustD = t; }
       const km = y * 12 + m; ym[km] = Math.max(ym[km] == null ? -1 : ym[km], g);
     }
   });
   Object.entries(ym).forEach(([km, g]) => { const m = km % 12; M[m].gs += g; M[m].gc++; });
-  const years = Object.values(Y).filter(o => o.n > 300).sort((a, b) => a.y - b.y)
-    .map(o => ({ y: o.y, tmax: o.tx / o.n, tmin: o.tn / o.n, tmean: o.tm / o.n, heat: o.heat, p: o.p, sn: o.sn, gmax: o.gmax, gdate: o.gdate }));
-  const nY = years.length || 1;
+  // Vegetationsperiode je Jahr
+  const season = tmd => {
+    let start = null, end = null, run = 0;
+    for (let k = 0; k < tmd.length; k++) { run = tmd[k][1] > 5 ? run + 1 : 0; if (run >= 6) { start = tmd[k - 5][0]; break; } }
+    if (start == null) return null;
+    run = 0;
+    for (let k = 0; k < tmd.length; k++) { if (tmd[k][0] < 182) continue; run = tmd[k][1] < 5 ? run + 1 : 0; if (run >= 6) { end = tmd[k - 5][0]; break; } }
+    if (end == null) end = tmd[tmd.length - 1][0] + 1;
+    return { start, end, len: end - start };
+  };
+  const years = Object.values(Y).filter(o => o.n > 300).sort((a, b) => a.y - b.y).map(o => {
+    const gs = season(o.tmd);
+    return { y: o.y, tmax: o.tx / o.n, tmin: o.tn / o.n, tmean: o.tm / o.n, heat: o.heat, p: o.p, sn: o.sn, gmax: o.gmax, gdate: o.gdate,
+      frost: o.frost, ice: o.ice, summer: o.summer, trop: o.trop, heavy: o.heavy, storm: o.storm, dryMax: o.dryMax, dryEnd: o.dryEnd, hwMax: o.hwMax, hwEnd: o.hwEnd,
+      lastSpring: o.lastSpring, firstAutumn: o.firstAutumn, frostFree: o.lastSpring != null && o.firstAutumn != null ? o.firstAutumn - o.lastSpring - 1 : null,
+      hdd: o.hdd, et0: o.e0n > 300 ? o.et0 : null, wb: o.e0n > 300 ? o.p - o.et0 : null, gsStart: gs && gs.start, gsEnd: gs && gs.end, gsl: gs && gs.len };
+  });
+  const nY = years.length || 1, hasE0 = years.some(o => o.et0 != null);
   const months = M.map(o => ({ tmax: o.n ? o.tx / o.n : null, tmin: o.n ? o.tn / o.n : null, tmean: o.n ? o.tm / o.n : null,
-    heat: o.heat / nY, p: o.p / nY, sn: o.sn / nY, gust: o.gc ? o.gs / o.gc : null }));
+    heat: o.heat / nY, p: o.p / nY, sn: o.sn / nY, gust: o.gc ? o.gs / o.gc : null,
+    frost: o.frost / nY, ice: o.ice / nY, summer: o.summer / nY, trop: o.trop / nY, heavy: o.heavy / nY, storm: o.storm / nY, hdd: o.hdd / nY,
+    et0: hasE0 ? o.et0 / nY : null, wb: hasE0 ? (o.p - o.et0) / nY : null }));
   return { years, months, rec };
 }
 /* Umrechnung in die eingestellten Einheiten (für Achsen und Werte) */
@@ -1726,7 +1768,7 @@ function vzChart(id, o) {
   let lo = Math.min(...all), hi = Math.max(...all);
   if (o.type === 'bar' || o.zero) lo = Math.min(0, lo);
   if (o.type === 'line') { const pad = (hi - lo) * 0.08 || 1; lo -= o.zero ? 0 : pad; hi += pad; }
-  const ticks = niceTicks(lo, hi, 4); lo = ticks[0]; hi = ticks[ticks.length - 1];
+  const ticks = o.ticksFn ? o.ticksFn(lo, hi) : niceTicks(lo, hi, 4); lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
   const y = v => T + ph * (1 - (v - lo) / (hi - lo)), x = i => L + band * (i + 0.5);
   let g = '';
   for (const t of ticks) g += `<line x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="var(--grid)" stroke-width="1"/><text x="${L - 6}" y="${(y(t) + 4).toFixed(1)}" text-anchor="end">${o.fmtAxis ? o.fmtAxis(t) : dec(t, Math.abs(t) < 10 && t % 1 ? 1 : 0)}</text>`;
@@ -1740,8 +1782,8 @@ function vzChart(id, o) {
       const yt = y(v), h = Math.abs(base - yt), x0 = x(i) - bw / 2, r = Math.min(4, bw / 2, h);
       if (h < 0.5) return;
       g += v >= 0
-        ? `<path class="vz-m" data-i="${i}" d="M${x0.toFixed(1)} ${base.toFixed(1)}V${(yt + r).toFixed(1)}q0 -${r} ${r} -${r}h${(bw - 2 * r).toFixed(1)}q${r} 0 ${r} ${r}V${base.toFixed(1)}Z" fill="${s0.color}"/>`
-        : `<rect class="vz-m" data-i="${i}" x="${x0.toFixed(1)}" y="${base.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${s0.color}"/>`;
+        ? `<path class="vz-m" data-i="${i}" d="M${x0.toFixed(1)} ${base.toFixed(1)}V${(yt + r).toFixed(1)}q0 -${r} ${r} -${r}h${(bw - 2 * r).toFixed(1)}q${r} 0 ${r} ${r}V${base.toFixed(1)}Z" fill="${s0.colorFn ? s0.colorFn(v) : s0.color}"/>`
+        : `<path class="vz-m" data-i="${i}" d="M${x0.toFixed(1)} ${base.toFixed(1)}V${(base + h - r).toFixed(1)}q0 ${r} ${r} ${r}h${(bw - 2 * r).toFixed(1)}q${r} 0 ${r} -${r}V${base.toFixed(1)}Z" fill="${s0.colorFn ? s0.colorFn(v) : s0.color}"/>`;
     });
   } else {
     o.series.forEach(s => {
@@ -1773,7 +1815,7 @@ function vzShow(el, cx, cy) {
   hov.innerHTML = h;
   svg.querySelectorAll('.vz-m').forEach(m => m.style.opacity = +m.dataset.i === i ? 1 : 0.55);
   if (!vzTip) { vzTip = document.createElement('div'); vzTip.className = 'vz-tip'; document.body.appendChild(vzTip); }
-  vzTip.innerHTML = `<b>${o.tipLabel ? o.tipLabel(i) : o.labels[i]}</b>` + o.series.map(s => `<div><i style="background:${s.color}"></i>${esc(s.name)}<em>${s.values[i] == null ? '–' : o.fmt(s.values[i])}</em></div>`).join('') + (o.tipExtra ? o.tipExtra(i) : '');
+  vzTip.innerHTML = `<b>${o.tipLabel ? o.tipLabel(i) : o.labels[i]}</b>` + o.series.map(s => `<div><i style="background:${s.colorFn && s.values[i] != null ? s.colorFn(s.values[i]) : s.color}"></i>${esc(s.name)}<em>${s.values[i] == null ? '–' : o.fmt(s.values[i])}</em></div>`).join('') + (o.tipExtra ? o.tipExtra(i) : '');
   vzTip.style.display = 'block';
   const tw = vzTip.offsetWidth, th = vzTip.offsetHeight;
   vzTip.style.left = Math.max(8, Math.min(innerWidth - tw - 8, cx + 14)) + 'px';
@@ -1790,72 +1832,147 @@ $('#main').addEventListener('pointerleave', vzHide);
 window.addEventListener('scroll', vzHide, { passive: true });
 let vzRT; window.addEventListener('resize', () => { clearTimeout(vzRT); vzRT = setTimeout(() => { if (state.view === 'climate') render(); }, 200); });
 
+/* Tag im Jahr (1–366) als Datum „12.04.“ bzw. „12 Apr“ */
+/* Achsenteilung für Tage im Jahr: Monatsanfänge */
+const doyTicks = (lo, hi) => {
+  const ms = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366];
+  let a = ms.filter(d => d <= lo).pop() || 1, b = ms.find(d => d >= hi) || 366;
+  const t = ms.filter(d => d >= a && d <= b);
+  return t.length > 6 ? t.filter((_, i) => i % 2 === 0 || i === t.length - 1) : t;
+};
+const doyLabel = d => { if (d == null) return '–'; const dt = new Date(Date.UTC(2001, 0, Math.round(d))); return LANG === 'en' ? dt.getUTCDate() + ' ' + MON_EN[dt.getUTCMonth()] : String(dt.getUTCDate()).padStart(2, '0') + '.' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '.'; };
 function viewClimate() {
   if (!state.loc) return '';
-  const k = climKey(), data = CLIM.cache[k];
-  const endY = new Date().getFullYear() - 1, startY = endY - CLIM.years + 1;
+  const k = climKey(), data = CLIM.agg[k], { startY, endY } = climRange();
   const filt = `<div class="cl-filters">
-    <span>${tr('Zeitraum', 'Period')} <span class="gsw">${[10, 30, 50].map(n => `<button data-clyears="${n}" class="${CLIM.years === n ? 'on' : ''}">${n} ${tr('Jahre', 'years')}</button>`).join('')}</span></span>
+    <span>${tr('Thema', 'Topic')} <span class="gsw">${[['klima', tr('Klima', 'Climate')], ['tage', tr('Kenntage', 'Key days')], ['praxis', tr('Haus & Garten', 'Home & garden')]].map(([v, l]) => `<button data-clsec="${v}" class="${CLIM.sec === v ? 'on' : ''}">${l}</button>`).join('')}</span></span>
+    <span>${tr('Zeitraum', 'Period')} <span class="gsw">${[10, 30, 50, 85].map(n => `<button data-clyears="${n}" class="${CLIM.years === n ? 'on' : ''}">${n} ${tr('J.', 'yrs')}</button>`).join('')}</span></span>
     <span>${tr('Ansicht', 'View')} <span class="gsw"><button data-clmode="year" class="${CLIM.mode === 'year' ? 'on' : ''}">${tr('pro Jahr', 'per year')}</button><button data-clmode="month" class="${CLIM.mode === 'month' ? 'on' : ''}">${tr('pro Monat', 'per month')}</button></span></span></div>`;
   const headCard = body => `<div class="card viz"><h2>📊 ${tr('Klima-Cockpit', 'Climate cockpit')} <span>${esc(state.loc.name)} · ${startY}–${endY}</span></h2>${filt}${body}</div>`;
   if (!data) {
     loadClimate().then(() => { if (state.view === 'climate' && climKey() === k) render(); })
       .catch(() => { if (state.view === 'climate' && climKey() === k) $('#main').innerHTML = headCard(`<div class="pad">${tr('Die historischen Daten konnten nicht geladen werden. Bitte später erneut versuchen.', 'The historical data could not be loaded. Please try again later.')}</div>`); });
-    return headCard(`<div class="loading" style="min-height:160px"><div><div class="spin"></div>${tr('Lade Klimadaten', 'Loading climate data')} ${startY}–${endY} …</div></div>`);
+    return headCard(`<div class="loading" style="min-height:160px"><div><div class="spin"></div>${tr('Lade Klimadaten', 'Loading climate data')} ${startY}–${endY} …${CLIM.years > 30 ? `<br><small>${tr('Das kann einige Sekunden dauern.', 'This may take a few seconds.')}</small>` : ''}</div></div>`);
   }
   const Yr = data.years, Mo = data.months, perYear = CLIM.mode === 'year';
   if (!Yr.length) return headCard(`<div class="pad">${tr('Für diesen Ort liegen keine historischen Daten vor.', 'No historical data for this place.')}</div>`);
-  const avg = a => a.reduce((s, v) => s + v, 0) / (a.length || 1);
-  // Kennzahlen
-  const tAll = avg(Yr.map(o => o.tmean)), heatAvg = avg(Yr.map(o => o.heat)), pAvg = avg(Yr.map(o => o.p)), sAvg = avg(Yr.map(o => o.sn));
-  const heatTop = Yr.reduce((a, b) => b.heat > a.heat ? b : a);
-  let trend = '';
-  if (Yr.length >= 20) {
-    const first = avg(Yr.slice(0, 10).map(o => o.tmean)), last = avg(Yr.slice(-10).map(o => o.tmean)), dlt = nT(last) - nT(first) - (U.temp === 'f' ? 32 * 0 : 0);
-    const dd = U.temp === 'f' ? (last - first) * 9 / 5 : last - first;
-    trend = `<span>${tr('letzte 10 Jahre gegenüber erste 10:', 'last 10 years vs. first 10:')} <strong>${dd >= 0 ? '+' : ''}${dec(dd)} ${tUnit()}</strong></span>`;
-  }
+  const avg = a => { const v = a.filter(x => x != null); return v.reduce((s2, x) => s2 + x, 0) / (v.length || 1); };
   const tile = (lbl, val, sub) => `<div class="cl-tile"><small>${lbl}</small><b>${val}</b>${sub ? `<span>${sub}</span>` : ''}</div>`;
-  const tiles = `<div class="cl-tiles">
-    ${tile(tr('Ø Jahrestemperatur', 'Avg. annual temperature'), dec(nT(tAll)) + ' ' + tUnit(), trend)}
-    ${tile(tr('Hitzetage pro Jahr (Ø)', 'Hot days per year (avg.)'), dec(heatAvg), tr('Rekord: ', 'Record: ') + heatTop.heat + ' (' + heatTop.y + ')')}
-    ${tile(tr('Höchstwert', 'Highest'), dec(nT(data.rec.max)) + ' ' + tUnit(), fmtDate(data.rec.maxD))}
-    ${tile(tr('Tiefstwert', 'Lowest'), dec(nT(data.rec.min)) + ' ' + tUnit(), fmtDate(data.rec.minD))}
-    ${tile(tr('Stärkste Böe', 'Strongest gust'), ws(data.rec.gust), fmtDate(data.rec.gustD))}
-    ${tile(tr('Niederschlag pro Jahr (Ø)', 'Precipitation per year (avg.)'), U.precip === 'in' ? dec(nP(pAvg)) + ' in' : Math.round(pAvg) + ' mm', tr('Schnee: ', 'Snow: ') + (U.precip === 'in' ? dec(nS(sAvg)) + ' in' : Math.round(sAvg) + ' cm'))}
-  </div>`;
-  // Diagramme
+  // Kachel mit Mittelwert und Vergleich erste/letzte 10 Jahre
+  const tileCmp = (lbl, f, fmt) => {
+    const all = Yr.map(f), v = avg(all);
+    let sub = '';
+    if (Yr.length >= 20) sub = `${Yr[0].y}–${Yr[9].y}: <strong>${fmt(avg(all.slice(0, 10)))}</strong> · ${Yr[Yr.length - 10].y}–${Yr[Yr.length - 1].y}: <strong>${fmt(avg(all.slice(-10)))}</strong>`;
+    return tile(lbl, fmt(v), sub);
+  };
   const labels = perYear ? Yr.map(o => String(o.y)) : MONTHS();
   const head = perYear ? tr('Jahr', 'Year') : tr('Monat', 'Month');
-  const pick = (fy, fm) => perYear ? Yr.map(fy) : Mo.map(fm);
+  const pick = (fy, fm) => perYear ? Yr.map(fy) : Mo.map(fm || fy);
   const C1 = 'var(--series-1)', C2 = 'var(--series-2)', C3 = 'var(--series-3)';
-  const tf = v => dec(v) + ' ' + tUnit();
   const card = (title, sub, chart) => `<div class="card viz"><h2>${title} <span>${sub}</span></h2>${chart}</div>`;
-  const temp = vzChart('t', { type: 'line', title: 'Temperatur', labels, labelHead: head, fmt: tf, series: [
-    { name: tr('Ø Höchstwert', 'Avg. max'), short: 'Max', color: C2, values: pick(o => nT(o.tmax), o => nT(o.tmax)) },
-    { name: tr('Ø Mittel', 'Avg. mean'), short: tr('Mittel', 'Mean'), color: C3, values: pick(o => nT(o.tmean), o => nT(o.tmean)) },
-    { name: tr('Ø Tiefstwert', 'Avg. min'), short: 'Min', color: C1, values: pick(o => nT(o.tmin), o => nT(o.tmin)) }] });
-  const heat = vzChart('h', { type: 'bar', title: 'Hitzetage', labels, labelHead: head, fmt: v => dec(v, perYear ? 0 : 1), series: [
-    { name: tr('Hitzetage', 'Hot days'), color: C2, values: pick(o => o.heat, o => o.heat) }] });
-  const wind = vzChart('w', { type: perYear ? 'bar' : 'line', zero: true, title: 'Windspitzen', labels, labelHead: head, fmt: v => (U.wind === 'bft' ? Math.round(v) : dec(v, U.wind === 'ms' ? 1 : 0)) + ' ' + wUnit(), series: [
-    { name: perYear ? tr('Stärkste Böe', 'Strongest gust') : tr('Ø stärkste Böe im Monat', 'Avg. monthly peak gust'), color: C1, values: pick(o => nW(o.gmax), o => nW(o.gust)) }],
-    tipExtra: perYear ? i => `<div style="color:var(--muted);font-size:12px">${fmtDate(Yr[i].gdate)}</div>` : null });
-  const rain = vzChart('p', { type: 'bar', title: 'Niederschlag', labels, labelHead: head, fmt: v => dec(v, U.precip === 'in' ? 1 : 0) + ' ' + pUnit(), series: [
-    { name: tr('Niederschlag', 'Precipitation'), color: C1, values: pick(o => nP(o.p), o => nP(o.p)) }] });
-  const snow = vzChart('s', { type: 'bar', title: 'Schnee', labels, labelHead: head, fmt: v => dec(v, U.precip === 'in' ? 1 : 0) + ' ' + sUnit(), series: [
-    { name: tr('Neuschnee', 'Snowfall'), color: C1, values: pick(o => nS(o.sn), o => nS(o.sn)) }] });
   const perTxt = perYear ? tr('pro Jahr', 'per year') : tr('Ø pro Monat', 'avg. per month');
-  return headCard(tiles)
-    + card(tr('🌡️ Temperatur', '🌡️ Temperature'), (perYear ? tr('Jahresmittel', 'annual means') : tr('Monatsmittel', 'monthly means')) + ' · ' + tUnit(), temp)
-    + card(tr('🔥 Hitzetage', '🔥 Hot days'), tr('Höchstwert ≥ ', 'max ≥ ') + (U.temp === 'f' ? '86 °F' : '30 °C') + ' · ' + perTxt, heat)
-    + card(tr('🌬️ Windspitzen', '🌬️ Peak gusts'), (perYear ? tr('stärkste Böe des Jahres', 'strongest gust of the year') : tr('Ø der stärksten Böe je Monat', 'avg. of the strongest gust per month')) + ' · ' + wUnit(), wind)
-    + card(tr('🌧️ Niederschlag', '🌧️ Precipitation'), tr('Summe ', 'total ') + perTxt + ' · ' + pUnit(), rain)
-    + card(tr('❄️ Schnee', '❄️ Snow'), tr('Neuschnee-Summe ', 'snowfall total ') + perTxt + ' · ' + sUnit(), snow)
-    + `<p class="note">${tr('Quelle: Open-Meteo Wetterarchiv (ERA5-Reanalyse des Copernicus-Dienstes), Rasterwerte für den Ort (ca. 10–25 km); sie können von einzelnen Messstationen abweichen, Windböen werden oft unterschätzt. Nur vollständige Kalenderjahre.', 'Source: Open-Meteo weather archive (Copernicus ERA5 reanalysis), grid values for the place (approx. 10–25 km); they may differ from individual weather stations, wind gusts are often underestimated. Complete calendar years only.')}${data.elev != null ? tr(' Höhe des Rasterpunkts: ', ' Grid point elevation: ') + Math.round(data.elev) + ' m.' : ''}</p>`;
+  const days = v => dec(v, perYear ? 0 : 1) + ' ' + tr('Tage', 'days');
+  const onlyYear = t => card(t, '', `<div class="pad" style="color:var(--muted)">${tr('Diese Auswertung gibt es nur in der Ansicht „pro Jahr“.', 'This analysis is only available in the “per year” view.')}</div>`);
+  const pUnitTxt = v => U.precip === 'in' ? dec(nP(v), 1) + ' in' : Math.round(v) + ' mm';
+  const deg = U.temp === 'f';
+  const thr = (c) => deg ? Math.round(c * 9 / 5 + 32) + ' °F' : c + ' °C';
+  let body = '', note = '';
+
+  if (CLIM.sec === 'tage') {
+    body = headCard(`<div class="cl-tiles">
+      ${tileCmp(tr('Frosttage pro Jahr', 'Frost days per year'), o => o.frost, v => dec(v, 0))}
+      ${tileCmp(tr('Eistage pro Jahr', 'Ice days per year'), o => o.ice, v => dec(v, 0))}
+      ${tileCmp(tr('Sommertage pro Jahr', 'Summer days per year'), o => o.summer, v => dec(v, 0))}
+      ${tileCmp(tr('Tropennächte pro Jahr', 'Tropical nights per year'), o => o.trop, v => dec(v, 1))}
+      ${tileCmp(tr('Starkregentage pro Jahr', 'Heavy-rain days per year'), o => o.heavy, v => dec(v, 1))}
+      ${tileCmp(tr('Frostfreie Zeit', 'Frost-free period'), o => o.frostFree, v => dec(v, 0) + ' ' + tr('Tage', 'days'))}
+    </div>`)
+      + card(tr('🥶 Frost- und Eistage', '🥶 Frost and ice days'), tr('Frost: Tiefstwert < ', 'frost: min < ') + thr(0) + tr(' · Eis: ganztägig < ', ' · ice: all day < ') + thr(0) + ' · ' + perTxt,
+        vzChart('f', { type: 'line', zero: true, title: 'Frosttage', labels, labelHead: head, fmt: days, series: [
+          { name: tr('Frosttage', 'Frost days'), short: tr('Frost', 'Frost'), color: C1, values: pick(o => o.frost) },
+          { name: tr('Eistage', 'Ice days'), short: tr('Eis', 'Ice'), color: C3, values: pick(o => o.ice) }] }))
+      + card(tr('☀️ Sommertage und Tropennächte', '☀️ Summer days and tropical nights'), tr('Sommertag: Höchstwert ≥ ', 'summer day: max ≥ ') + thr(25) + tr(' · Tropennacht: Tiefstwert ≥ ', ' · tropical night: min ≥ ') + thr(20) + ' · ' + perTxt,
+        vzChart('su', { type: 'line', zero: true, title: 'Sommertage', labels, labelHead: head, fmt: days, series: [
+          { name: tr('Sommertage', 'Summer days'), short: tr('Sommer', 'Summer'), color: C2, values: pick(o => o.summer) },
+          { name: tr('Tropennächte', 'Tropical nights'), short: tr('Tropen', 'Tropical'), color: C1, values: pick(o => o.trop) }] }))
+      + card(tr('🌧️ Starkregentage', '🌧️ Heavy-rain days'), tr('Niederschlag ≥ ', 'precipitation ≥ ') + (U.precip === 'in' ? '0,8 in' : '20 mm') + tr(' am Tag · ', ' per day · ') + perTxt,
+        vzChart('hr', { type: 'bar', title: 'Starkregentage', labels, labelHead: head, fmt: days, series: [{ name: tr('Starkregentage', 'Heavy-rain days'), color: C1, values: pick(o => o.heavy) }] }))
+      + card(tr('🌪️ Sturmtage', '🌪️ Storm days'), tr('Böen ≥ ', 'gusts ≥ ') + ws(75) + ' · ' + perTxt,
+        vzChart('st', { type: 'bar', title: 'Sturmtage', labels, labelHead: head, fmt: days, series: [{ name: tr('Sturmtage', 'Storm days'), color: C1, values: pick(o => o.storm) }] }));
+    if (perYear) {
+      body += card(tr('🏜️ Längste Trocken- und Hitzeperiode', '🏜️ Longest dry spell and heatwave'), tr('Tage in Folge · trocken: < 1 mm · Hitze: ≥ ', 'consecutive days · dry: < 1 mm · heat: ≥ ') + thr(30),
+          vzChart('sp', { type: 'line', zero: true, title: 'Perioden', labels, labelHead: head, fmt: v => dec(v, 0) + ' ' + tr('Tage', 'days'), series: [
+            { name: tr('Trockenperiode', 'Dry spell'), short: tr('trocken', 'dry'), color: C3, values: Yr.map(o => o.dryMax) },
+            { name: tr('Hitzeperiode', 'Heatwave'), short: tr('Hitze', 'heat'), color: C2, values: Yr.map(o => o.hwMax) }],
+            tipExtra: i => `<div style="color:var(--muted);font-size:12px">${tr('Ende Trockenperiode: ', 'dry spell ended: ')}${fmtDate(Yr[i].dryEnd)}${Yr[i].hwMax ? '<br>' + tr('Ende Hitzeperiode: ', 'heatwave ended: ') + fmtDate(Yr[i].hwEnd) : ''}</div>` }))
+        + card(tr('❄️ Letzter und erster Frost', '❄️ Last and first frost'), tr('Datum im Jahr · dazwischen die frostfreie Zeit', 'date in the year · frost-free period in between'),
+          vzChart('fd', { type: 'line', title: 'Frostdaten', labels, labelHead: head, fmt: doyLabel, fmtAxis: doyLabel, ticksFn: doyTicks, series: [
+            { name: tr('Erster Frost im Herbst', 'First autumn frost'), short: tr('erster', 'first'), color: C1, values: Yr.map(o => o.firstAutumn) },
+            { name: tr('Letzter Frost im Frühjahr', 'Last spring frost'), short: tr('letzter', 'last'), color: C3, values: Yr.map(o => o.lastSpring) }] }))
+        + card(tr('🌱 Frostfreie Zeit', '🌱 Frost-free period'), tr('Tage zwischen letztem und erstem Frost', 'days between last and first frost'),
+          vzChart('ff', { type: 'bar', title: 'Frostfreie Zeit', labels, labelHead: head, fmt: v => dec(v, 0) + ' ' + tr('Tage', 'days'), series: [{ name: tr('Frostfreie Tage', 'Frost-free days'), color: C3, values: Yr.map(o => o.frostFree) }] }));
+    } else body += onlyYear(tr('🏜️ Trocken- und Hitzeperioden, Frostdaten', '🏜️ Dry spells, heatwaves, frost dates'));
+    note = tr('Kenntage nach den Schwellen des Deutschen Wetterdienstes und von GeoSphere Austria. Sturmtag: Böen ab Windstärke 9 (75 km/h).', 'Key days use the thresholds of the German and Austrian weather services. Storm day: gusts of Beaufort 9 (75 km/h) or more.');
+  } else if (CLIM.sec === 'praxis') {
+    const hddF = v => dec(deg ? v * 1.8 : v, 0) + (deg ? ' °F·d' : ' Kd');
+    const hasE0 = Yr.some(o => o.et0 != null);
+    body = headCard(`<div class="cl-tiles">
+      ${tileCmp(tr('Heizgradtage pro Jahr', 'Heating degree days per year'), o => o.hdd, hddF)}
+      ${hasE0 ? tileCmp(tr('Verdunstung pro Jahr', 'Evaporation per year'), o => o.et0, pUnitTxt) : ''}
+      ${hasE0 ? tileCmp(tr('Wasserbilanz pro Jahr', 'Water balance per year'), o => o.wb, v => (v >= 0 ? '+' : '') + pUnitTxt(v)) : ''}
+      ${tileCmp(tr('Vegetationsperiode', 'Growing season'), o => o.gsl, v => dec(v, 0) + ' ' + tr('Tage', 'days'))}
+    </div>`)
+      + card(tr('🔥 Heizgradtage', '🔥 Heating degree days'), tr('G20/15: Summe (20 °C − Tagesmittel) an Tagen unter 15 °C · ', 'G20/15: sum of (20 °C − daily mean) on days below 15 °C · ') + perTxt,
+        vzChart('hd', { type: 'bar', title: 'Heizgradtage', labels, labelHead: head, fmt: hddF, series: [{ name: tr('Heizgradtage', 'Heating degree days'), color: C2, values: pick(o => o.hdd) }] }));
+    if (hasE0) body += card(tr('💧 Niederschlag und Verdunstung', '💧 Precipitation and evaporation'), tr('Verdunstung: Referenzverdunstung von Gras (FAO) · ', 'evaporation: grass reference evapotranspiration (FAO) · ') + perTxt + ' · ' + pUnit(),
+        vzChart('pe', { type: 'line', zero: true, title: 'Niederschlag und Verdunstung', labels, labelHead: head, fmt: v => dec(v, U.precip === 'in' ? 1 : 0) + ' ' + pUnit(), series: [
+          { name: tr('Niederschlag', 'Precipitation'), short: tr('Regen', 'Rain'), color: C1, values: pick(o => nP(o.p)) },
+          { name: tr('Verdunstung', 'Evaporation'), short: tr('Verd.', 'Evap.'), color: C2, values: pick(o => nP(o.et0)) }] }))
+      + card(tr('🌾 Klimatische Wasserbilanz', '🌾 Climatic water balance'), tr('Niederschlag minus Verdunstung · blau = Überschuss, orange = Defizit (Trockenheit) · ', 'precipitation minus evaporation · blue = surplus, orange = deficit (drought) · ') + perTxt,
+        vzChart('wb', { type: 'bar', title: 'Wasserbilanz', labels, labelHead: head, fmt: v => (v >= 0 ? '+' : '') + dec(v, U.precip === 'in' ? 1 : 0) + ' ' + pUnit(), series: [
+          { name: tr('Wasserbilanz', 'Water balance'), color: C1, colorFn: v => v < 0 ? C2 : C1, values: pick(o => nP(o.wb)) }] }));
+    else body += card(tr('💧 Verdunstung und Wasserbilanz', '💧 Evaporation and water balance'), '', `<div class="pad" style="color:var(--muted)">${tr('Für diesen Ort liegen keine Verdunstungswerte vor.', 'No evaporation data for this place.')}</div>`);
+    if (perYear) body += card(tr('🌱 Vegetationsperiode', '🌱 Growing season'), tr('Länge in Tagen: von 6 Tagen in Folge über 5 °C bis 6 Tage in Folge unter 5 °C (ab Juli)', 'length in days: from 6 consecutive days above 5 °C to 6 consecutive days below 5 °C (from July)'),
+        vzChart('gs', { type: 'bar', title: 'Vegetationsperiode', labels, labelHead: head, fmt: v => dec(v, 0) + ' ' + tr('Tage', 'days'), series: [{ name: tr('Vegetationsperiode', 'Growing season'), color: C3, values: Yr.map(o => o.gsl) }],
+          tipExtra: i => Yr[i].gsStart ? `<div style="color:var(--muted);font-size:12px">${doyLabel(Yr[i].gsStart)} – ${doyLabel(Yr[i].gsEnd)}</div>` : '' }));
+    else body += onlyYear(tr('🌱 Vegetationsperiode', '🌱 Growing season'));
+    note = tr('Heizgradtage nach VDI 3807 / ÖNORM (Gradtagzahl G20/15) – ein Maß für den Heizbedarf. Verdunstung nach FAO-56 (Penman-Monteith). Vegetationsperiode nach der Definition der WMO-Klimaindizes (ETCCDI).', 'Heating degree days per VDI 3807 / ÖNORM (G20/15) – a measure of heating demand. Evaporation per FAO-56 (Penman-Monteith). Growing season per the WMO climate indices (ETCCDI).');
+  } else {
+    const tAll = avg(Yr.map(o => o.tmean)), heatAvg = avg(Yr.map(o => o.heat)), pAvg = avg(Yr.map(o => o.p)), sAvg = avg(Yr.map(o => o.sn));
+    const heatTop = Yr.reduce((a, b) => b.heat > a.heat ? b : a);
+    let trend = '';
+    if (Yr.length >= 20) { const dd = (avg(Yr.slice(-10).map(o => o.tmean)) - avg(Yr.slice(0, 10).map(o => o.tmean))) * (deg ? 9 / 5 : 1); trend = `<span>${tr('letzte 10 Jahre gegenüber erste 10:', 'last 10 years vs. first 10:')} <strong>${dd >= 0 ? '+' : ''}${dec(dd)} ${tUnit()}</strong></span>`; }
+    const tf = v => dec(v) + ' ' + tUnit();
+    body = headCard(`<div class="cl-tiles">
+      ${tile(tr('Ø Jahrestemperatur', 'Avg. annual temperature'), dec(nT(tAll)) + ' ' + tUnit(), trend)}
+      ${tile(tr('Hitzetage pro Jahr (Ø)', 'Hot days per year (avg.)'), dec(heatAvg), tr('Rekord: ', 'Record: ') + heatTop.heat + ' (' + heatTop.y + ')')}
+      ${tile(tr('Höchstwert', 'Highest'), dec(nT(data.rec.max)) + ' ' + tUnit(), fmtDate(data.rec.maxD))}
+      ${tile(tr('Tiefstwert', 'Lowest'), dec(nT(data.rec.min)) + ' ' + tUnit(), fmtDate(data.rec.minD))}
+      ${tile(tr('Stärkste Böe', 'Strongest gust'), ws(data.rec.gust), fmtDate(data.rec.gustD))}
+      ${tile(tr('Niederschlag pro Jahr (Ø)', 'Precipitation per year (avg.)'), pUnitTxt(pAvg), tr('Schnee: ', 'Snow: ') + (U.precip === 'in' ? dec(nS(sAvg)) + ' in' : Math.round(sAvg) + ' cm'))}
+    </div>`)
+      + card(tr('🌡️ Temperatur', '🌡️ Temperature'), (perYear ? tr('Jahresmittel', 'annual means') : tr('Monatsmittel', 'monthly means')) + ' · ' + tUnit(),
+        vzChart('t', { type: 'line', title: 'Temperatur', labels, labelHead: head, fmt: tf, series: [
+          { name: tr('Ø Höchstwert', 'Avg. max'), short: 'Max', color: C2, values: pick(o => nT(o.tmax)) },
+          { name: tr('Ø Mittel', 'Avg. mean'), short: tr('Mittel', 'Mean'), color: C3, values: pick(o => nT(o.tmean)) },
+          { name: tr('Ø Tiefstwert', 'Avg. min'), short: 'Min', color: C1, values: pick(o => nT(o.tmin)) }] }))
+      + card(tr('🔥 Hitzetage', '🔥 Hot days'), tr('Höchstwert ≥ ', 'max ≥ ') + thr(30) + ' · ' + perTxt,
+        vzChart('h', { type: 'bar', title: 'Hitzetage', labels, labelHead: head, fmt: v => dec(v, perYear ? 0 : 1), series: [{ name: tr('Hitzetage', 'Hot days'), color: C2, values: pick(o => o.heat) }] }))
+      + card(tr('🌬️ Windspitzen', '🌬️ Peak gusts'), (perYear ? tr('stärkste Böe des Jahres', 'strongest gust of the year') : tr('Ø der stärksten Böe je Monat', 'avg. of the strongest gust per month')) + ' · ' + wUnit(),
+        vzChart('w', { type: perYear ? 'bar' : 'line', zero: true, title: 'Windspitzen', labels, labelHead: head, fmt: v => (U.wind === 'bft' ? Math.round(v) : dec(v, U.wind === 'ms' ? 1 : 0)) + ' ' + wUnit(), series: [
+          { name: perYear ? tr('Stärkste Böe', 'Strongest gust') : tr('Ø stärkste Böe im Monat', 'Avg. monthly peak gust'), color: C1, values: pick(o => nW(o.gmax), o => nW(o.gust)) }],
+          tipExtra: perYear ? i => `<div style="color:var(--muted);font-size:12px">${fmtDate(Yr[i].gdate)}</div>` : null }))
+      + card(tr('🌧️ Niederschlag', '🌧️ Precipitation'), tr('Summe ', 'total ') + perTxt + ' · ' + pUnit(),
+        vzChart('p', { type: 'bar', title: 'Niederschlag', labels, labelHead: head, fmt: v => dec(v, U.precip === 'in' ? 1 : 0) + ' ' + pUnit(), series: [{ name: tr('Niederschlag', 'Precipitation'), color: C1, values: pick(o => nP(o.p)) }] }))
+      + card(tr('❄️ Schnee', '❄️ Snow'), tr('Neuschnee-Summe ', 'snowfall total ') + perTxt + ' · ' + sUnit(),
+        vzChart('s', { type: 'bar', title: 'Schnee', labels, labelHead: head, fmt: v => dec(v, U.precip === 'in' ? 1 : 0) + ' ' + sUnit(), series: [{ name: tr('Neuschnee', 'Snowfall'), color: C1, values: pick(o => nS(o.sn)) }] }));
+  }
+  return body + `<p class="note">${note ? note + ' ' : ''}${tr('Quelle: Open-Meteo Wetterarchiv (ERA5-Reanalyse des Copernicus-Dienstes), Rasterwerte für den Ort (ca. 10–25 km); sie können von einzelnen Messstationen abweichen, Windböen werden oft unterschätzt. Nur vollständige Kalenderjahre. Werte vor etwa 1950 beruhen auf weniger Beobachtungen und sind unsicherer.', 'Source: Open-Meteo weather archive (Copernicus ERA5 reanalysis), grid values for the place (approx. 10–25 km); they may differ from individual weather stations, wind gusts are often underestimated. Complete calendar years only. Values before about 1950 are based on fewer observations and are less certain.')}${data.elev != null ? tr(' Höhe des Rasterpunkts: ', ' Grid point elevation: ') + Math.round(data.elev) + ' m.' : ''}</p>`;
 }
 function climateClick(e) {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.clyears) { CLIM.years = +b.dataset.clyears; store.set('climYears', CLIM.years); render(); }
+  else if (b.dataset.clsec) { CLIM.sec = b.dataset.clsec; store.set('climSec', CLIM.sec); render(); }
   else if (b.dataset.clmode) { CLIM.mode = b.dataset.clmode; store.set('climMode', CLIM.mode); render(); }
 }
 /* App-Symbol in der Kopfzeile (gleiches Bild wie das Tab-/Startbildschirm-Symbol); Antippen führt zur Ansicht „Heute“ */
