@@ -951,7 +951,6 @@ function viewToday() {
     </div>
   </div>
   <div class="card" id="allergyCard">${allergyHTML()}</div>
-  <div class="card"><h2>👗 ${tr('Was ziehe ich heute an?', 'What to wear today?')} ${genderSwitch()}</h2>${outfitHTML(0)}</div>
   <div class="card"><h2>${tr('Tagesverlauf heute', 'Today at a glance')} <span>${dshort(D.time[0])}</span></h2>${segsHTML(D.time[0])}</div>
   <div class="card"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
@@ -962,6 +961,7 @@ function viewToday() {
       <div class="hrow wind">${idx.map((i, k) => cell(arrow(H.wind_direction_10m[i]) + '<br>' + wv(H.wind_speed_10m[i]), i, k)).join('')}</div>
     </div></div>
   </div>
+  <div class="card"><h2>👗 ${tr('Was ziehe ich heute an?', 'What to wear today?')} ${genderSwitch()}</h2>${outfitHTML(0)}</div>
   <p class="note">${tr('Stand: ', 'Updated: ') + withUhr(C.time.slice(11, 16)) + tr(' (Ortszeit) · Wind in ', ' (local time) · wind in ') + wUnit()}</p>`;
 }
 
