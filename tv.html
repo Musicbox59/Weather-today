@@ -150,12 +150,63 @@
   .anecdote h3{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#b07a00}
   .anecdote b{display:block;font-size:15.5px;margin-bottom:4px}
   .anecdote p{margin:0;line-height:1.55;font-size:14px}
+
+  /* ===== Amsel: fliegt über die Seite, sitzt auf Kanten und singt ===== */
+  #birdLayer{position:fixed;inset:0;z-index:45;pointer-events:none;overflow:hidden}
+  .bird{position:absolute;left:0;top:0;width:60px;height:40px;will-change:transform;pointer-events:none;opacity:0;transition:opacity .4s}
+  .bird.ready{opacity:1}
+  .bird-flip{width:100%;height:100%;transition:transform .25s ease}
+  .bird.left .bird-flip{transform:scaleX(-1)}
+  .bird-tilt{width:100%;height:100%;transform-origin:50% 70%}
+  .bird svg{width:100%;height:100%;display:block;overflow:visible;filter:drop-shadow(0 1px 1.5px rgba(255,255,255,.35))}
+  .bird .hit{pointer-events:auto;cursor:pointer}
+  .bird .wing,.bird .head,.bird .tail,.bird .beak-up,.bird .beak-lo,.bird .hop{transform-box:view-box}
+  .bird .wing{transform-origin:72px 40px}
+  .bird .head{transform-origin:84px 40px;transition:transform .25s ease}
+  .bird .tail{transform-origin:36px 50px}
+  .bird .beak-up{transform-origin:99px 31px;transition:transform .12s}
+  .bird .beak-lo{transform-origin:99px 33px;transition:transform .12s}
+  .bird .legs{transition:opacity .15s}
+  .bird .hop{transform-origin:60px 74px}
+  .bird.flying .legs{opacity:0}
+  .bird.flying .wing{animation:bird-flap .16s ease-in-out infinite alternate}
+  @keyframes bird-flap{from{transform:rotate(70deg)}to{transform:rotate(-24deg)}}
+  .bird.sitting .tail{animation:bird-tail 4.5s ease-in-out infinite}
+  @keyframes bird-tail{0%,86%,100%{transform:rotate(0)}90%{transform:rotate(-14deg)}94%{transform:rotate(4deg)}}
+  .bird.peck .head{transform:rotate(14deg)}
+  .bird.look .head{transform:rotate(-12deg)}
+  .bird.hopping .hop{animation:bird-hop .35s ease-out}
+  @keyframes bird-hop{40%{transform:translateY(-9px)}100%{transform:translateY(0)}}
+  .bird.singing .beak-up{animation:bird-beak-up .22s ease-in-out infinite alternate}
+  .bird.singing .beak-lo{animation:bird-beak-lo .22s ease-in-out infinite alternate}
+  .bird.singing .head{transform:rotate(-16deg)}
+  .bird.singing .throat{animation:bird-throat .22s ease-in-out infinite alternate}
+  @keyframes bird-beak-up{to{transform:rotate(-9deg)}}
+  @keyframes bird-beak-lo{to{transform:rotate(20deg)}}
+  @keyframes bird-throat{to{transform:scale(1.12)}}
+  .bird .throat{transform-box:fill-box;transform-origin:center}
+  .bird-note{position:absolute;width:16px;height:20px;pointer-events:none;color:#FF8A1F;animation:bird-note 1.8s ease-out forwards}
+  .bird-note svg{width:100%;height:100%;display:block}
+  @keyframes bird-note{0%{opacity:0;transform:translate(0,0) scale(.6) rotate(0)}15%{opacity:1}100%{opacity:0;transform:translate(var(--dx),-58px) scale(1.05) rotate(var(--rot))}}
+  #btnBird .wave{transition:opacity .2s}
+  #btnBird[aria-pressed="false"] .wave{opacity:0}
+  #btnBird .mute{opacity:0;transition:opacity .2s}
+  #btnBird[aria-pressed="false"] .mute{opacity:1}
+  @media (max-width:600px){.bird{width:50px;height:33px}}
+  @media (prefers-reduced-motion:reduce){.bird *,.bird-note{animation:none!important}}
 </style>
 </head>
 <body>
 <header>
   <div class="top">
     <h1>📺 TV-Programm</h1>
+    <button class="icon-btn" id="btnBird" aria-pressed="true" title="Amselgesang an/aus" aria-label="Amselgesang an/aus">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none"/>
+        <path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>
+        <path class="mute" d="M16 9.5l5 5M21 9.5l-5 5"/>
+      </svg>
+    </button>
     <button class="icon-btn" id="btnTheme" title="Hell/Dunkel" aria-label="Hell/Dunkel umschalten">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
     </button>
@@ -170,6 +221,32 @@
 <div id="scroller"><div id="grid"></div></div>
 <div class="note">Demo-Programmdaten · Wischen ↑↓ für andere Uhrzeiten, ←→ für weitere Sender · Tippen für Details</div>
 
+<div id="birdLayer" aria-hidden="true">
+  <div class="bird"><div class="bird-tilt"><div class="bird-flip">
+    <svg viewBox="0 0 120 80">
+      <g class="hop">
+        <g class="legs" stroke="#5a4632" stroke-width="2.4" stroke-linecap="round" fill="none">
+          <path d="M58 58 L55 73 M51 74 L60 74"/><path d="M67 58 L68 73 M64 74 L73 74"/>
+        </g>
+        <g class="tail"><path d="M40 47 L4 58 Q2 62 7 62 L42 56 Z" fill="#141414"/></g>
+        <path d="M36 50 Q38 30 66 30 Q86 30 88 44 Q88 60 64 62 Q44 63 36 50 Z" fill="#141414"/>
+        <path d="M48 36 Q62 31 74 33" fill="none" stroke="#3a3a3a" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>
+        <ellipse class="throat" cx="86" cy="45" rx="5" ry="6" fill="#161616"/>
+        <g class="wing">
+          <path d="M74 38 Q60 34 40 48 Q56 54 74 46 Z" fill="#202020"/>
+          <path d="M70 41 Q57 41 46 48" fill="none" stroke="#3d3d3d" stroke-width="1.2" stroke-linecap="round"/>
+        </g>
+        <g class="head">
+          <circle cx="88" cy="31" r="13" fill="#141414"/>
+          <g class="beak-up"><path d="M98 27.5 Q108 28.5 117 31.5 L99 33 Z" fill="#F4A21C"/></g>
+          <g class="beak-lo"><path d="M99 33 L114 32.5 Q106 36 99 36 Z" fill="#E08A0C"/></g>
+          <circle cx="92" cy="28" r="3.6" fill="#F4A21C"/><circle cx="92.4" cy="28" r="2" fill="#000"/><circle cx="93.1" cy="27.3" r=".7" fill="#fff"/>
+        </g>
+        <ellipse class="hit" cx="64" cy="44" rx="40" ry="26" fill="transparent"/>
+      </g>
+    </svg>
+  </div></div></div>
+</div>
 <button class="fab" id="btnTips" aria-label="Ratgeber öffnen"><span>💡</span>Ratgeber</button>
 <div class="backdrop" id="tips"><div class="sheet" id="tipsBody"></div></div>
 <div class="backdrop" id="detail"><div class="sheet" id="detailBody"></div></div>
@@ -719,6 +796,271 @@ function openTips(){
   $('#tips').classList.add('open');
 }
 $('#btnTips').addEventListener('click', openTips);
+
+/* ===================== Amsel ===================== */
+(function () {
+  const layer = $('#birdLayer'), bird = layer.querySelector('.bird'), tiltEl = bird.querySelector('.bird-tilt'), btn = $('#btnBird');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* --- Ton: Amselgesang von join4all.com, Strophen in Sekunden --- */
+  // zuerst die Datei neben tv.html, sonst die Kopie auf join4all.com, sonst Ersatzmelodie
+  const SONG_URLS = ['media/amsel.mp3', 'https://www.join4all.com/media/amsel.mp3'];
+  let songIdx = 0;
+  const PHRASES = [[0.6, 3.5], [5.9, 13.3], [15.8, 20.7], [24.7, 28.1]];
+  const VOL = 0.6;
+  let audio = null, audioFailed = false, unlocked = false, soundOn = store.get('tv.amsel', true), fadeTimer = null, stopTimer = null, actx = null;
+  const canVol = (() => { try { const t = new Audio(); t.volume = 0.5; return Math.abs(t.volume - 0.5) < 0.01; } catch (e) { return false; } })();
+  const showState = () => btn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  showState();
+
+  function ensureAudio() {
+    if (!audio) {
+      audio = new Audio(SONG_URLS[0]); audio.preload = 'auto';
+      audio.addEventListener('error', () => {
+        if (++songIdx < SONG_URLS.length) { audio.src = SONG_URLS[songIdx]; audio.load(); } else audioFailed = true;
+      });
+    }
+    return audio;
+  }
+  function unlock() {
+    if (unlocked) return;
+    unlocked = true;
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    const a = ensureAudio(); a.muted = true;
+    const pr = a.play();
+    const done = () => { if (!a.__singing) a.pause(); a.muted = false; };
+    if (pr && pr.then) pr.then(done, () => { a.muted = false; }); else done();
+    ['click', 'touchend', 'keydown', 'pointerup'].forEach(ev => removeEventListener(ev, unlock, true));
+  }
+  ['click', 'touchend', 'keydown', 'pointerup'].forEach(ev => addEventListener(ev, unlock, true));
+
+  function stopSound(fast) {
+    clearTimeout(stopTimer); clearInterval(fadeTimer);
+    if (!audio) return;
+    audio.__singing = false;
+    if (audio.paused) return;
+    if (fast || !canVol) { audio.pause(); return; }
+    fadeTimer = setInterval(() => { audio.volume = Math.max(0, audio.volume - 0.08); if (audio.volume <= 0.02) { clearInterval(fadeTimer); audio.pause(); } }, 40);
+  }
+  // Ersatz, falls die Tondatei nicht geladen werden kann: flötende Amsel-Strophe per Web Audio
+  function synthPhrase(sec) {
+    if (!actx) return;
+    if (actx.state === 'suspended') actx.resume();
+    let t = actx.currentTime + 0.05; const end = t + sec;
+    while (t < end - 0.3) {
+      const n = 3 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) {
+        const o = actx.createOscillator(), g = actx.createGain(), d = 0.12 + Math.random() * 0.22;
+        const f0 = 1400 + Math.random() * 1300, f1 = f0 * (0.8 + Math.random() * 0.5);
+        o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + d);
+        g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.03); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+        o.connect(g).connect(actx.destination); o.start(t); o.stop(t + d + 0.02);
+        t += d + 0.04;
+      }
+      for (let i = 0; i < 5; i++) {   // leises Zwitschern am Strophenende
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.setValueAtTime(4200 + Math.random() * 1500, t); o.frequency.exponentialRampToValueAtTime(3000, t + 0.05);
+        g.gain.setValueAtTime(0.04, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.07); t += 0.07;
+      }
+      t += 0.6;
+    }
+  }
+  function playPhrase(p) {
+    if (!soundOn || !unlocked) return;
+    if (audioFailed) { synthPhrase(Math.min(p[1] - p[0], 4)); return; }
+    const a = ensureAudio();
+    clearTimeout(stopTimer); clearInterval(fadeTimer);
+    const go = () => {
+      try { a.currentTime = p[0]; } catch (e) {}
+      a.muted = false; a.__singing = true;
+      if (canVol) a.volume = 0.05;
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => { a.__singing = false; });
+      if (canVol) fadeTimer = setInterval(() => { a.volume = Math.min(VOL, a.volume + 0.07); if (a.volume >= VOL) clearInterval(fadeTimer); }, 40);
+      stopTimer = setTimeout(() => stopSound(false), (p[1] - p[0]) * 1000);
+    };
+    if (a.readyState >= 1) go(); else a.addEventListener('loadedmetadata', go, { once: true });
+  }
+
+  let firstPress = true;
+  btn.addEventListener('click', () => {
+    unlock();
+    if (firstPress && soundOn) firstPress = false;   // erster Klick bei Ton an: nicht ausschalten, sondern singen
+    else { firstPress = false; soundOn = !soundOn; }
+    showState(); store.set('tv.amsel', soundOn);
+    if (!soundOn) { stopSound(true); return; }
+    if (state.mode === 'sit') { bird.classList.remove('singing'); sing(); }
+  });
+
+  /* --- Sitzplätze: Kopfbereich, Senderköpfe, Trennstriche zwischen Sendungen, Ratgeber-Button --- */
+  function inside(r, box) { return r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom; }
+  function candidates() {
+    const list = [], s = size(), vw = innerWidth;
+    const headEls = [$('header h1'), $('#btnBird'), $('#btnTheme'), $('#btnChannels'), ...document.querySelectorAll('#days .chip, #jumps .chip')];
+    for (const el of headEls) {
+      const r = el.getBoundingClientRect(), row = el.closest('.row');
+      if (r.width < 30 || r.top - s.h * 0.925 < 0) continue;   // muss ganz im Bild sitzen
+      if (row && (r.left < row.getBoundingClientRect().left || r.right > row.getBoundingClientRect().right)) continue;
+      if (r.right > vw || r.left < 0) continue;
+      list.push({ el, w: 3 });
+    }
+    for (const el of document.querySelectorAll('.ch-head')) {
+      const r = el.getBoundingClientRect();
+      if (r.left >= 52 && r.right <= vw) list.push({ el, w: 1 });
+    }
+    // Trennstriche zwischen Sendungen = Oberkante der sichtbaren Programmblöcke
+    const sr = scroller.getBoundingClientRect();
+    const box = { left: sr.left + 52, right: sr.right, top: sr.top + 46 + s.h, bottom: sr.bottom - 8 };
+    for (const el of grid.querySelectorAll('.prog')) {
+      const r = el.getBoundingClientRect();
+      if (r.top >= box.top && r.top <= box.bottom && r.left >= box.left && r.right <= box.right) list.push({ el, w: 2 });
+    }
+    const fab = $('#btnTips');
+    if (fab.getBoundingClientRect().width) list.push({ el: fab, w: 1 });
+    return list;
+  }
+  function pickTarget() {
+    const c = candidates().filter(x => x.el !== state.el);
+    if (!c.length) return null;
+    const tot = c.reduce((a, x) => a + x.w, 0); let r = Math.random() * tot;
+    for (const x of c) { r -= x.w; if (r <= 0) return x.el; }
+    return c[c.length - 1].el;
+  }
+
+  /* --- Bewegung --- */
+  const state = { mode: 'away', el: null, frac: 0.5, x: -120, y: 40, facingLeft: false };
+  let flight = null, timers = [], running = false;
+  const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.push(t); return t; };
+  const clearLater = () => { timers.forEach(clearTimeout); timers = []; };
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const size = () => ({ w: bird.offsetWidth, h: bird.offsetHeight });
+
+  function perch(el, frac) {
+    if (!el || !el.isConnected) return null;
+    const r = el.getBoundingClientRect(), s = size();
+    if (!r.width) return null;
+    return { x: r.left + frac * r.width - s.w / 2, y: r.top - s.h * 0.925, r };
+  }
+  function stillVisible(el) {
+    const p = perch(el, 0.5); if (!p) return false;
+    if (el.classList.contains('prog')) {
+      const sr = scroller.getBoundingClientRect();
+      return p.r.top >= sr.top + 46 && p.r.top <= sr.bottom - 4 && p.r.left >= sr.left + 40 && p.r.right <= sr.right + 10;
+    }
+    const row = el.closest('.row');
+    if (row) { const rr = row.getBoundingClientRect(); if (p.r.left < rr.left - 10 || p.r.right > rr.right + 10) return false; }
+    return p.r.right > 0 && p.r.left < innerWidth && p.r.top > 0;
+  }
+  function place(x, y, tilt) {
+    state.x = x; state.y = y;
+    bird.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+    tiltEl.style.transform = `rotate(${(tilt || 0).toFixed(1)}deg)`;
+  }
+  function face(left) { state.facingLeft = left; bird.classList.toggle('left', left); }
+
+  function flyTo(el, frac, away) {
+    clearLater(); stopSound(false);
+    bird.classList.remove('sitting', 'singing', 'peck', 'look');
+    bird.classList.add('flying');
+    state.mode = 'fly';
+    const x0 = state.x, y0 = state.y;
+    const end = away || !el ? { x: Math.random() < 0.5 ? -140 : innerWidth + 140, y: rnd(0, innerHeight * 0.4) } : perch(el, frac);
+    const dist = Math.hypot(end.x - x0, end.y - y0);
+    flight = { el, frac, away: away || !el, x0, y0, end, t0: performance.now(), dur: Math.max(900, Math.min(3200, dist / 0.42)), lift: rnd(70, 150) };
+    face(end.x < x0);
+    state.el = flight.away ? null : el; state.frac = frac;
+  }
+  function land() {
+    bird.classList.remove('flying'); bird.classList.add('sitting');
+    state.mode = 'sit'; tiltEl.style.transform = 'rotate(0deg)';
+    later(sing, rnd(500, 1400));
+    later(fidget, rnd(2600, 4000));
+    later(next, rnd(9000, 14000));
+  }
+  function sing() {
+    if (state.mode !== 'sit') return;
+    const p = PHRASES[Math.floor(Math.random() * PHRASES.length)];
+    const dur = Math.min((p[1] - p[0]) * 1000, 7400);
+    bird.classList.add('singing');
+    playPhrase(p);
+    let n = 0; const iv = setInterval(() => { note(); if (++n > dur / 450) clearInterval(iv); }, 450);
+    timers.push(iv);
+    later(() => { bird.classList.remove('singing'); clearInterval(iv); }, dur);
+  }
+  function fidget() {
+    if (state.mode !== 'sit' || bird.classList.contains('singing')) { later(fidget, 1500); return; }
+    const r = Math.random();
+    if (r < 0.3) face(!state.facingLeft);
+    else if (r < 0.55) { bird.classList.add('peck'); later(() => bird.classList.remove('peck'), 380); }
+    else if (r < 0.8) { bird.classList.add('look'); later(() => bird.classList.remove('look'), 900); }
+    else { bird.classList.remove('hopping'); void bird.offsetWidth; bird.classList.add('hopping');
+           state.frac = Math.min(0.85, Math.max(0.15, state.frac + (state.facingLeft ? -0.08 : 0.08))); }
+    later(fidget, rnd(1600, 3200));
+  }
+  function next() {
+    if (Math.random() < 0.12) { flyTo(null, 0.5, true); return; }   // kurz wegfliegen …
+    flyTo(pickTarget(), rnd(0.2, 0.8), false);
+  }
+  function note() {
+    const s = size(), el = document.createElement('span');
+    el.className = 'bird-note';
+    const bx = state.facingLeft ? state.x + s.w * 0.08 : state.x + s.w * 0.86;
+    el.style.left = (bx - 8) + 'px'; el.style.top = (state.y - 6) + 'px';
+    el.style.setProperty('--dx', ((state.facingLeft ? -1 : 1) * rnd(8, 26)).toFixed(0) + 'px');
+    el.style.setProperty('--rot', rnd(-25, 25).toFixed(0) + 'deg');
+    el.innerHTML = Math.random() < 0.5
+      ? '<svg viewBox="0 0 16 20"><path d="M11 1v12.5a3.2 3.2 0 1 1-2-3V4.5L15 3V1z" fill="currentColor"/></svg>'
+      : '<svg viewBox="0 0 16 20"><path d="M5 3l10-2v12a3 3 0 1 1-2-2.8V5L7 6.2V15a3 3 0 1 1-2-2.8z" fill="currentColor"/></svg>';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1900);
+  }
+  function frame(now) {
+    if (!running) return;
+    if (state.mode === 'fly' && flight) {
+      const f = flight;
+      if (!f.away) { const pe = perch(f.el, f.frac); if (pe) f.end = pe; }   // Ziel folgt beim Scrollen
+      const t = Math.min(1, (now - f.t0) / f.dur);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const cx = (f.x0 + f.end.x) / 2, cy = Math.min(f.y0, f.end.y) - f.lift, u = 1 - e;
+      const x = u * u * f.x0 + 2 * u * e * cx + e * e * f.end.x;
+      const y = u * u * f.y0 + 2 * u * e * cy + e * e * f.end.y;
+      const dy = 2 * u * (cy - f.y0) + 2 * e * (f.end.y - cy);
+      place(x, y, Math.max(-22, Math.min(22, dy / 12)) * (f.end.x < f.x0 ? -1 : 1));
+      if (t >= 1) {
+        flight = null;
+        if (f.away) { state.mode = 'away'; bird.classList.remove('flying'); later(next, rnd(4000, 8000)); }
+        else land();
+      }
+    } else if (state.mode === 'sit') {
+      if (!stillVisible(state.el)) next();     // Sitzplatz weggescrollt oder neu gezeichnet → auffliegen
+      else { const p = perch(state.el, state.frac); place(state.x + (p.x - state.x) * 0.3, p.y, 0); }
+    }
+    requestAnimationFrame(frame);
+  }
+  function setRunning(on) {
+    if (on === running) return;
+    running = on;
+    if (on) requestAnimationFrame(frame); else stopSound(true);
+  }
+
+  bird.querySelector('.hit').addEventListener('click', ev => {
+    ev.stopPropagation(); unlock();
+    if (state.mode === 'sit' && !bird.classList.contains('singing')) sing();
+  });
+  document.addEventListener('visibilitychange', () => setRunning(!document.hidden));
+
+  if (reduced) {   // ohne Bewegung: sitzt ruhig auf dem Titel und singt auf Klick
+    state.el = $('#jumps .prime'); state.frac = 0.6; state.mode = 'sit';
+    const pos = () => { const q = perch(state.el, state.frac); if (q) place(q.x, q.y, 0); };
+    pos(); bird.classList.add('sitting', 'ready'); addEventListener('resize', pos);
+    return;
+  }
+  place(-120, 30, 0);
+  bird.classList.add('ready');
+  setRunning(true);
+  later(() => flyTo($('#jumps .prime'), 0.6, false), 1200);
+})();
 
 /* ===================== Start ===================== */
 renderDays(); renderJumps(); renderGrid();
