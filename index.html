@@ -146,7 +146,32 @@
   .pad{padding:14px}
 
   /* Current */
-  .now{display:flex;align-items:center;gap:12px;padding:16px 14px 8px}
+  .now{display:flex;align-items:center;gap:12px;padding:16px 14px 8px;position:relative;overflow:hidden;isolation:isolate}
+  .now > *:not(.sky){position:relative;z-index:1}
+  /* Himmel im Hintergrund – passend zu Tageszeit und Wetter */
+  .sky{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.88}
+  .sky svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .sky .drift{animation:skyDrift var(--dur,90s) linear infinite alternate}
+  .sky .drift2{animation:skyDrift var(--dur2,120s) linear infinite alternate-reverse}
+  .sky .rainf{animation:skyRain .7s linear infinite}
+  .sky .snowf{animation:skySnow 7s linear infinite}
+  .sky .twinkle{animation:skyTwinkle 3.5s ease-in-out infinite}
+  .sky .flash{opacity:0;animation:skyFlash 7s linear infinite}
+  .sky .fogb{animation:skyDrift 40s ease-in-out infinite alternate}
+  @keyframes skyDrift{from{transform:translateX(-6%)}to{transform:translateX(8%)}}
+  @keyframes skyRain{from{transform:translate(0,-40px)}to{transform:translate(var(--slant,0px),40px)}}
+  @keyframes skySnow{from{transform:translate(0,-60px)}to{transform:translate(18px,60px)}}
+  @keyframes skyTwinkle{0%,100%{opacity:.95}50%{opacity:.35}}
+  @keyframes skyFlash{0%,88%,92%,100%{opacity:0}89%,91%{opacity:.75}90%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){.sky *{animation:none!important}.sky path.flash{opacity:.9}}
+  .now.on-dark .today-date{color:rgba(255,255,255,.82)}
+  .now.on-dark .big,.now.on-dark .desc{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .now.on-dark .sub{color:rgba(255,255,255,.9);text-shadow:0 1px 2px rgba(0,0,0,.4)}
+  .now.on-dark .today-date{text-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .now.on-dark .maxmin b.mx{color:#ffa198}
+  .now.on-dark .maxmin b.mn{color:#9ccbff}
+  .now.on-dark .pol-ic .leaf{background:rgba(255,255,255,.9)}
+  .now.on-light .big,.now.on-light .desc{text-shadow:0 1px 2px rgba(255,255,255,.6)}
   .now .today-date{font-size:14px;font-weight:600;color:var(--muted);margin-bottom:2px}
   .now .big{font-size:64px;font-weight:300;line-height:1;letter-spacing:-2px}
   .now .desc{font-size:18px;font-weight:600}
@@ -993,6 +1018,105 @@ function chart(series, n, colW, h) {
   return `<svg class="chart" width="${n * colW}" height="${h}" style="display:block">${out}</svg>`;
 }
 
+/* ---------- Himmel im Hintergrund der aktuellen Wetterkarte ----------
+   Tageszeit aus Sonnenauf-/untergang (Dämmerung ±45 Min.), Wetter aus dem Wettercode, Sturm ab Böen von 60 km/h,
+   Mond mit der tatsächlichen Mondphase (synodischer Monat, Bezugsneumond 6.1.2000 18:14 UTC). */
+function moonPhase(date) {
+  const syn = 29.530588853, ref = Date.UTC(2000, 0, 6, 18, 14);
+  let p = ((date.getTime() - ref) / 86400000 / syn) % 1; if (p < 0) p += 1;
+  return p;   // 0 = Neumond, 0,25 = erstes Viertel, 0,5 = Vollmond, 0,75 = letztes Viertel
+}
+function moonName(p) {
+  const n = [[0.03, tr('Neumond', 'New moon')], [0.22, tr('zunehmende Sichel', 'Waxing crescent')], [0.28, tr('erstes Viertel', 'First quarter')],
+    [0.47, tr('zunehmender Mond', 'Waxing gibbous')], [0.53, tr('Vollmond', 'Full moon')], [0.72, tr('abnehmender Mond', 'Waning gibbous')],
+    [0.78, tr('letztes Viertel', 'Last quarter')], [0.97, tr('abnehmende Sichel', 'Waning crescent')], [1.01, tr('Neumond', 'New moon')]];
+  return n.find(([lim]) => p < lim)[1];
+}
+function skyScene(C, D) {
+  const mins = t => t ? +t.slice(11, 13) * 60 + +t.slice(14, 16) : null;
+  const now = mins(C.time), rise = mins(D.sunrise[0]), set = mins(D.sunset[0]);
+  let tod = C.is_day ? 'day' : 'night';
+  if (now != null && rise != null && set != null) {
+    if (Math.abs(now - rise) <= 45) tod = 'dawn';
+    else if (Math.abs(now - set) <= 45) tod = 'dusk';
+    else tod = now > rise && now < set ? 'day' : 'night';
+  }
+  const c = C.weather_code;
+  const wx = c >= 95 ? 'storm' : (c >= 71 && c <= 77) || c === 85 || c === 86 ? 'snow' : c >= 51 ? 'rain' : c === 45 || c === 48 ? 'fog' : c === 3 ? 'overcast' : c === 2 ? 'partly' : c === 1 ? 'fair' : 'clear';
+  const windy = (C.wind_gusts_10m || 0) >= 60;
+  const G = {   // Farbverlauf oben → unten
+    day: { clear: ['#3d8fe0', '#9ccff5'], fair: ['#4a95dd', '#a8d3f2'], partly: ['#5b98d0', '#b4d2ea'], overcast: ['#8e9aa7', '#c7ced6'], fog: ['#b7bec6', '#e1e5e9'], rain: ['#6c7a89', '#a7b1bc'], snow: ['#9fb0c2', '#e2e8ef'], storm: ['#3b4352', '#68717f'] },
+    dawn: { clear: ['#9aa8d8', '#f8c9a0'], fair: ['#9ba6d2', '#f4ccaa'], partly: ['#a2a8c8', '#eed0b8'], overcast: ['#7d8595', '#c9b9b0'], fog: ['#a9aeb7', '#dcd3cc'], rain: ['#5f6878', '#9c9aa0'], snow: ['#8c98ab', '#d9d6db'], storm: ['#363c4a', '#615f66'] },
+    dusk: { clear: ['#24306a', '#c96a45'], fair: ['#2b3669', '#c0714f'], partly: ['#363e68', '#b27a62'], overcast: ['#5c6474', '#a79a95'], fog: ['#959aa4', '#cbc2bb'], rain: ['#4a5262', '#827f86'], snow: ['#7a8599', '#c8c3c9'], storm: ['#2c313d', '#55525a'] },
+    night: { clear: ['#07112a', '#1c3264'], fair: ['#0b1531', '#223563'], partly: ['#141d33', '#2b3a5c'], overcast: ['#1d232e', '#363e4c'], fog: ['#2a3039', '#4a515c'], rain: ['#151b25', '#2e3542'], snow: ['#232b38', '#47505f'], storm: ['#0f131a', '#272c35'] }
+  }[tod][wx];
+  // dunkler Hintergrund -> helle Schrift
+  const dark = tod === 'night' || wx === 'storm' || (tod === 'dusk' && wx !== 'fog') || (wx === 'rain' && tod !== 'day');
+  return { tod, wx, windy, G, dark };
+}
+function skyHTML(C, D) {
+  const S = skyScene(C, D), W = 400, H = 170;
+  let rnd = 7; const R = () => (rnd = (rnd * 9301 + 49297) % 233280) / 233280;   // feste Zufallsfolge: Sterne springen nicht
+  let g = `<defs><linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${S.G[0]}"/><stop offset="1" stop-color="${S.G[1]}"/></linearGradient>
+    <radialGradient id="sunG"><stop offset="0" stop-color="#fff6c8" stop-opacity=".95"/><stop offset=".35" stop-color="#ffe08a" stop-opacity=".55"/><stop offset="1" stop-color="#ffe08a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="moonG"><stop offset="0" stop-color="#fffbe6" stop-opacity=".45"/><stop offset="1" stop-color="#fffbe6" stop-opacity="0"/></radialGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#skyG)"/>`;
+  const clear = S.wx === 'clear' || S.wx === 'fair' || S.wx === 'partly';
+  let title = '';
+  // Sterne und Mond
+  if (S.tod === 'night' && clear) {
+    const n = S.wx === 'partly' ? 25 : 55;
+    for (let i = 0; i < n; i++) { const x = R() * W, y = R() * H * 0.85, r = R() * 1.1 + 0.4; g += `<circle class="${R() < 0.35 ? 'twinkle' : ''}" style="animation-delay:${(R() * 3).toFixed(1)}s" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="#fff" opacity="${(0.5 + R() * 0.5).toFixed(2)}"/>`; }
+  }
+  if ((S.tod === 'night' || S.tod === 'dusk') && clear) {
+    const ph = moonPhase(new Date()), cx = W - 46, cy = 38, r = 17, k = Math.cos(2 * Math.PI * ph), rx = Math.abs(k) * r;
+    title = tr('Mond: ', 'Moon: ') + moonName(ph);
+    g += `<circle cx="${cx}" cy="${cy}" r="${r * 2.6}" fill="url(#moonG)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff" opacity=".12"/>`;
+    if (ph > 0.03 && ph < 0.97) {
+      const lit = ph < 0.5
+        ? `M${cx} ${cy - r}A${r} ${r} 0 0 1 ${cx} ${cy + r}A${rx.toFixed(2)} ${r} 0 0 ${k > 0 ? 0 : 1} ${cx} ${cy - r}Z`
+        : `M${cx} ${cy - r}A${r} ${r} 0 0 0 ${cx} ${cy + r}A${rx.toFixed(2)} ${r} 0 0 ${k > 0 ? 1 : 0} ${cx} ${cy - r}Z`;
+      g += `<path d="${lit}" fill="#fdf6d8"/><circle cx="${cx - 5}" cy="${cy - 4}" r="2.4" fill="#e9dfb8" opacity=".5"/><circle cx="${cx + 4}" cy="${cy + 6}" r="3" fill="#e9dfb8" opacity=".4"/>`;
+    }
+  }
+  // Sonne bzw. Sonnenschein
+  if ((S.tod === 'day' && (clear || S.wx === 'overcast')) || ((S.tod === 'dawn' || S.tod === 'dusk') && clear)) {
+    const low = S.tod !== 'day', op = S.wx === 'overcast' ? 0.25 : S.wx === 'partly' ? 0.7 : 1;
+    g += `<circle cx="${W - 50}" cy="${low ? H - 18 : 30}" r="${low ? 90 : 75}" fill="url(#sunG)" opacity="${op}"/>`;
+  }
+  // Wolken
+  const cloud = (x, y, s, fill, op) => `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${s.toFixed(2)})" fill="${fill}" opacity="${op}"><ellipse cx="0" cy="10" rx="46" ry="16"/><circle cx="-18" cy="2" r="18"/><circle cx="8" cy="-6" r="24"/><circle cx="30" cy="4" r="16"/></g>`;
+  const nC = { fair: 2, partly: 4, overcast: 8, fog: 3, rain: 8, snow: 7, storm: 9 }[S.wx] || 0;
+  if (nC) {
+    const light = S.tod === 'night' ? '#46506a' : S.wx === 'storm' || S.wx === 'rain' ? '#5d6878' : '#ffffff';
+    const dark = S.tod === 'night' ? '#2c3447' : S.wx === 'storm' ? '#2d333e' : '#8794a3';
+    const dur = S.windy || S.wx === 'storm' ? 14 : 90;
+    let a = '', b = '';
+    for (let i = 0; i < nC; i++) {
+      const s2 = 0.55 + R() * 0.7, x = (i + 0.3) / nC * W + (R() - 0.5) * 40, y = 18 + R() * (S.wx === 'fair' || S.wx === 'partly' ? 50 : 70);
+      const c2 = cloud(x, y, s2, i % 3 === 2 ? dark : light, (S.wx === 'fair' ? 0.55 : 0.65 + R() * 0.25).toFixed(2));
+      if (i % 2) a += c2; else b += c2;
+    }
+    g += `<g class="drift" style="--dur:${dur}s">${a}</g><g class="drift2" style="--dur2:${Math.round(dur * 1.4)}s">${b}</g>`;
+  }
+  // Nebel
+  if (S.wx === 'fog') for (let i = 0; i < 4; i++) g += `<rect class="fogb" style="animation-delay:-${i * 9}s" x="-40" y="${40 + i * 30}" width="${W + 80}" height="22" rx="11" fill="#ffffff" opacity="${(0.35 + i * 0.08).toFixed(2)}"/>`;
+  // Regen, Schnee, Gewitter
+  if (S.wx === 'rain' || S.wx === 'storm') {
+    const sl = S.windy || S.wx === 'storm' ? -14 : -3, n = C.weather_code === 61 || C.weather_code === 51 || C.weather_code === 80 ? 26 : 45;
+    let r = '';
+    for (let i = 0; i < n; i++) { const x = R() * (W + 40), y = R() * H; r += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x + sl * 0.5).toFixed(1)}" y2="${(y + 11).toFixed(1)}"/>`; }
+    g += `<g class="rainf" style="--slant:${sl * 2}px" stroke="${S.dark ? '#b9d4f2' : '#4f7fae'}" stroke-width="1.4" stroke-linecap="round" opacity=".65">${r}</g>`;
+  }
+  if (S.wx === 'snow') {
+    let f = '';
+    for (let i = 0; i < 40; i++) f += `<circle cx="${(R() * W).toFixed(1)}" cy="${(R() * H).toFixed(1)}" r="${(R() * 1.6 + 1).toFixed(2)}"/>`;
+    g += `<g class="snowf" fill="#ffffff" opacity=".9">${f}</g>`;
+  }
+  if (S.wx === 'storm') g += `<rect class="flash" width="${W}" height="${H}" fill="#e8f1ff"/><path class="flash" d="M${W * 0.72} 20l-14 38h12l-10 34 26-44h-13l11-28z" fill="#ffe27a"/>`;
+  return `<div class="sky sky-${S.tod} sky-${S.wx}"${title ? ` title="${esc(title)}"` : ''} aria-hidden="true"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">${g}</svg></div>`;
+}
+
 /* ---------- Ansichten ---------- */
 function viewToday() {
   const C = state.data.current, D = state.data.daily, H = state.data.hourly;
@@ -1002,7 +1126,8 @@ function viewToday() {
   const cell = (inner, i, k) => `<div class="hcell ${k > 0 && H.time[i].slice(11, 13) === '00' ? 'newday' : ''}" style="width:${W}px">${inner}</div>`;
   return `
   <div class="card">
-    <div class="now">
+    <div class="now ${skyScene(C, D).dark ? 'on-dark' : 'on-light'}">
+      ${skyHTML(C, D)}
       ${polIcon(D.time[0], icon(C.weather_code, C.is_day, 92))}
       <div style="flex:1;min-width:0">
         <div class="today-date">${(LANG === 'en' ? WDL_EN : WDL_DE)[pd(D.time[0]).getDay()]}, ${dshort(D.time[0])}</div>
