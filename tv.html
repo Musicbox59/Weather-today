@@ -129,6 +129,27 @@
   .opt{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:14px}
   .opt input{width:20px;height:20px;accent-color:var(--accent)}
   .opt small{display:block;color:var(--muted);font-size:12px}
+
+  /* Ratgeber */
+  .fab{position:fixed;right:14px;bottom:calc(44px + env(safe-area-inset-bottom));z-index:40;display:flex;align-items:center;gap:7px;
+       padding:10px 15px 10px 12px;border-radius:999px;font-weight:600;font-size:14px;color:var(--text);
+       background:rgba(255,255,255,.28);border:1px solid rgba(255,255,255,.55);box-shadow:0 4px 18px rgba(0,0,0,.18);
+       backdrop-filter:blur(10px) saturate(1.4);-webkit-backdrop-filter:blur(10px) saturate(1.4);transition:transform .15s,background .15s}
+  .fab:hover{background:rgba(255,255,255,.45);transform:translateY(-1px)}
+  :root[data-theme="dark"] .fab{background:rgba(30,38,52,.35);border-color:rgba(255,255,255,.18)}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .fab{background:rgba(30,38,52,.35);border-color:rgba(255,255,255,.18)}}
+  .fab span{font-size:18px;line-height:1}
+  .hint{margin:12px 0 4px;padding:9px 12px;border-radius:10px;background:var(--bg);font-size:13px;color:var(--muted)}
+  .tip{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+  .tip:last-of-type{border-bottom:0}
+  .tip .ic{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:var(--bg)}
+  .tip h3{margin:0 0 2px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .tip b{display:block;font-size:15.5px;margin-bottom:3px}
+  .tip p{margin:0;font-size:14px;line-height:1.5}
+  .anecdote{margin-top:14px;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(242,169,0,.16),rgba(242,169,0,.05));border:1px solid rgba(242,169,0,.35)}
+  .anecdote h3{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#b07a00}
+  .anecdote b{display:block;font-size:15.5px;margin-bottom:4px}
+  .anecdote p{margin:0;line-height:1.55;font-size:14px}
 </style>
 </head>
 <body>
@@ -149,6 +170,8 @@
 <div id="scroller"><div id="grid"></div></div>
 <div class="note">Demo-Programmdaten · Wischen ↑↓ für andere Uhrzeiten, ←→ für weitere Sender · Tippen für Details</div>
 
+<button class="fab" id="btnTips" aria-label="Ratgeber öffnen"><span>💡</span>Ratgeber</button>
+<div class="backdrop" id="tips"><div class="sheet" id="tipsBody"></div></div>
 <div class="backdrop" id="detail"><div class="sheet" id="detailBody"></div></div>
 <div class="backdrop" id="chDialog"><div class="sheet">
   <button class="close" data-close>×</button>
@@ -610,6 +633,92 @@ $('#btnTheme').addEventListener('click', () => {
 });
 // Live-Markierung jede Minute aktualisieren
 setInterval(() => { if(dayOffset === 0){ const top = scroller.scrollTop; renderGrid(); scroller.scrollTop = top; } }, 60000);
+
+/* ===================== Ratgeber: Alternativen zum Fernsehen ===================== */
+// [Titel, Text]
+const TIPS_HIM = [
+  ['Werkstatt-Abend','Endlich das wackelnde Regal, die quietschende Tür oder das Fahrrad reparieren – mit Musik im Hintergrund vergeht die Zeit wie im Flug.'],
+  ['Neues Rezept wagen','Ein Gericht kochen, das du noch nie gemacht hast, z. B. ein echtes Gulasch oder selbst gemachte Pasta.'],
+  ['Abendlauf','30 Minuten locker laufen oder flott gehen – danach schläft man nachweislich besser als nach dem Krimi.'],
+  ['Ein Hörbuch & ein Tee','Kopfhörer auf, Licht gedimmt, ein spannendes Hörbuch – Kino im Kopf statt auf dem Bildschirm.'],
+  ['Fotos sortieren','Die Handyfotos des Jahres ausmisten und die besten zu einem kleinen Album zusammenstellen.'],
+  ['Schach oder Rätsel','Eine Partie Online-Schach, ein Kreuzworträtsel oder ein Sudoku – Training fürs Gehirn.'],
+  ['Alte Freunde anrufen','Einen Freund anrufen, von dem du schon lange nichts gehört hast. Das Gespräch ist meist besser als jede Talkshow.'],
+  ['Modellbau oder Basteln','Ein kleines Modell, ein Vogelhaus oder eine Holzarbeit beginnen – Handarbeit entspannt.'],
+  ['Musikinstrument','Die alte Gitarre abstauben oder mit einer App ein paar Akkorde lernen.'],
+  ['Sternenhimmel','Bei klarem Himmel mit einer Sternen-App nach draußen gehen und Planeten und Sternbilder suchen.'],
+  ['Saunagang','Ein Abend in der Sauna oder ein heißes Bad – Entspannung für Körper und Kopf.'],
+  ['Ein Sachbuch','Ein Buch über Geschichte, Technik oder Natur – mehr Wissen als jede Doku in 45 Minuten.'],
+];
+const TIPS_HER = [
+  ['Lesestunde mit Kuscheldecke','Ein Roman, der schon lange wartet, eine Tasse Tee und gemütliches Licht.'],
+  ['Yoga oder Dehnen','20 Minuten sanftes Yoga oder Dehnübungen – ideal nach einem langen Tag.'],
+  ['Freundinnen-Telefonat','Eine Freundin anrufen und in Ruhe plaudern – oder spontan auf ein Glas Wein treffen.'],
+  ['Kreativ werden','Malen, Zeichnen, Stricken oder ein Mal-Buch für Erwachsene – Kreativität beruhigt.'],
+  ['Wellness-Abend','Gesichtsmaske, Fußbad und Lieblingsmusik – ein kleiner Spa-Abend zu Hause.'],
+  ['Backen','Einen Kuchen, Kekse oder ein Brot backen – der Duft allein ist schon die halbe Freude.'],
+  ['Abendspaziergang','Eine Runde durchs Viertel oder am Fluss – frische Luft und Bewegung.'],
+  ['Tagebuch schreiben','Den Tag festhalten, drei schöne Momente notieren – das macht nachweislich zufriedener.'],
+  ['Pflanzen pflegen','Zimmerpflanzen umtopfen, Kräuter ziehen oder den Balkon für die nächste Saison planen.'],
+  ['Podcast entdecken','Einen neuen Podcast über Geschichte, Psychologie oder Reisen ausprobieren.'],
+  ['Ausmisten','Eine Schublade oder einen Kasten ausräumen – Ordnung schafft Platz im Kopf.'],
+  ['Sprachen lernen','15 Minuten mit einer Sprach-App – für die nächste Urlaubsreise.'],
+];
+const TIPS_BOTH = [
+  ['Spieleabend','Ein Brettspiel, ein Kartenspiel wie Schnapsen oder Rummy – oder ein großes Puzzle.'],
+  ['Gemeinsam kochen','Zusammen ein Menü aus einem Land kochen, in dem ihr noch nie wart – mit passender Musik.'],
+  ['Fotoalbum-Abend','Alte Fotos oder Urlaubsbilder ansehen und Erinnerungen teilen.'],
+  ['Konzert oder Theater','Schauen, was heute in der Stadt los ist: Kabarett, Kleinkunst, Konzert oder Kino.'],
+  ['Nächsten Ausflug planen','Gemeinsam einen Tagesausflug oder den nächsten Urlaub planen – Vorfreude ist die schönste Freude.'],
+  ['Tanzen im Wohnzimmer','Die Lieblingslieder von früher auflegen und einfach tanzen.'],
+  ['Vorlesen','Abwechselnd aus einem Buch vorlesen – überraschend gemütlich.'],
+  ['Nachtspaziergang','Warm anziehen und eine Runde unter Straßenlaternen gehen – ohne Handy.'],
+  ['Fragen-Spiel','Abwechselnd Fragen stellen wie „Was war dein schönster Kindheitstag?“ – man lernt sich neu kennen.'],
+  ['Heurigen oder Wirtshaus','Ein gemütlicher Abend beim Heurigen oder im Lieblingswirtshaus um die Ecke.'],
+  ['Gemeinsames Projekt','Zusammen ein Zimmer umgestalten, ein Hochbeet planen oder ein Fotobuch gestalten.'],
+  ['Wellness zu zweit','Kerzen, Massage und ein gutes Glas – Entspannung statt Bildschirm.'],
+];
+// Anekdoten aus der Fernsehgeschichte
+const ANECDOTES = [
+  ['Die Röhre von Herrn Braun','1897 entwickelte der Physiker Karl Ferdinand Braun die Kathodenstrahlröhre. Ohne seine „Braunsche Röhre“ hätte es fast ein Jahrhundert lang keine Fernseher gegeben – deshalb sagt man bis heute „Was läuft in der Röhre?“.'],
+  ['Die Lochscheibe','Schon 1884 meldete der Student Paul Nipkow in Berlin ein Patent auf eine rotierende Lochscheibe an, die Bilder in Zeilen zerlegt. Er selbst hat nie ein funktionierendes Fernsehgerät gebaut – die Idee war ihrer Zeit weit voraus.'],
+  ['Die erste Tagesschau','Am 26. Dezember 1952 lief die erste Tagesschau. Damals gab es in ganz Deutschland nur wenige tausend Fernsehgeräte – viele Menschen sahen sie in Gaststätten oder Schaufenstern.'],
+  ['Österreich geht auf Sendung','Am 1. August 1955 startete in Österreich der Versuchsbetrieb des Fernsehens. Anfangs wurde nur an wenigen Tagen pro Woche gesendet – und Fernsehabende waren gesellschaftliche Ereignisse beim Nachbarn mit Gerät.'],
+  ['Der zu frühe Knopfdruck','Als 1967 auf der Funkausstellung in Berlin das Farbfernsehen gestartet wurde, sollte Willy Brandt symbolisch auf einen Knopf drücken. Ein Techniker schaltete jedoch einen Moment zu früh um – das Bild wurde bunt, bevor der Knopf überhaupt berührt war.'],
+  ['Same procedure as every year','Der Sketch „Dinner for One“ wurde 1963 vom NDR aufgezeichnet und läuft seit den 1970er-Jahren jedes Silvester im Fernsehen. In Großbritannien, der Heimat der Darsteller, ist er dagegen kaum bekannt.'],
+  ['Die faule Fernbedienung','Eine der ersten Fernbedienungen hieß „Lazy Bones“ (Faulpelz) und kam 1950 auf den Markt – noch mit Kabel. Viele stolperten darüber, also erfand man später die kabellose Variante.'],
+  ['Fernsehstuben','Bei den Olympischen Spielen 1936 in Berlin konnte man die Wettkämpfe in öffentlichen „Fernsehstuben“ sehen. Private Fernseher gab es kaum – das Bild war klein, flimmernd und trotzdem eine Sensation.'],
+  ['Der erste Tatort','Am 29. November 1970 lief mit „Taxi nach Leipzig“ der erste Tatort. Niemand ahnte damals, dass daraus die langlebigste Krimireihe im deutschsprachigen Fernsehen werden würde.'],
+  ['Das Zweite kommt','Am 1. April 1963 ging das ZDF auf Sendung – ausgerechnet am 1. April. Ein Aprilscherz war es aber nicht: Das „Zweite“ sendet bis heute aus Mainz.'],
+  ['Sendeschluss','Früher endete das Fernsehprogramm in der Nacht mit Bundeshymne bzw. Nationalhymne und anschließend dem Testbild. Wer danach noch vor dem Gerät saß, sah nur Streifen und Rauschen – und ging schlafen.'],
+  ['Wenn nichts läuft …','Die wichtigste Anekdote überhaupt: Die schönsten Abende, an die man sich Jahre später erinnert, sind selten die vor dem Fernseher. Es sind die Gespräche, Spiele und Spaziergänge, die man stattdessen gemacht hat.'],
+];
+
+function dayIndex(d){ return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000); }
+function openTips(){
+  const d = broadcastDate(dayOffset), i = dayIndex(d);
+  const pick = (arr, k) => arr[(i * k + k) % arr.length];
+  const him = pick(TIPS_HIM, 5), her = pick(TIPS_HER, 7), both = pick(TIPS_BOTH, 11), an = ANECDOTES[i % ANECDOTES.length];
+  // Prüfen, ob um 20:15 ein gut bewerteter Film läuft
+  const prime = order.map(id => schedule(id, d).find(p => p.start <= PRIME && p.end > PRIME)).filter(Boolean);
+  const best = prime.filter(p => p.rating >= 4).sort((a, b) => b.rating - a.rating)[0];
+  const hint = best
+    ? `📺 Um 20:15 läuft „${esc(best.title)}“ auf ${esc(CHANNELS[best.ch].name)} (${String(best.rating).replace('.',',')}/5 Sterne). Falls euch das nicht zusagt:`
+    : '📺 Um 20:15 läuft heute kein Film mit 4 oder mehr Sternen – Zeit für eine Alternative!';
+  const dayTxt = d.toLocaleDateString('de-AT', {weekday:'long', day:'numeric', month:'long'});
+  const tip = (ic, who, t) => `<div class="tip"><div class="ic">${ic}</div><div><h3>${who}</h3><b>${esc(t[0])}</b><p>${esc(t[1])}</p></div></div>`;
+  $('#tipsBody').innerHTML = `
+    <button class="close" data-close aria-label="Schließen">×</button>
+    <div class="sub">💡 Ratgeber · ${dayTxt}</div>
+    <h2>Statt Fernsehen …</h2>
+    <div class="hint">${hint}</div>
+    ${tip('🧔', 'Für Ihn', him)}
+    ${tip('👩', 'Für Sie', her)}
+    ${tip('💑', 'Für beide zusammen', both)}
+    <div class="anecdote"><h3>📜 Zum Schluss – eine wichtige Anekdote</h3><b>${esc(an[0])}</b><p>${esc(an[1])}</p></div>`;
+  $('#tips').classList.add('open');
+}
+$('#btnTips').addEventListener('click', openTips);
 
 /* ===================== Start ===================== */
 renderDays(); renderJumps(); renderGrid();

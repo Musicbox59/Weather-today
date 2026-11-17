@@ -28,4 +28,5 @@ Programmvorschau als einzelne HTML-Datei: je Sender eine Spalte, die Zeit läuft
 - Je Sendung: Art (Doku, Thriller, …), Produktionsjahr, Land; bei Filmen Kritik in Sternen
 - Tippen auf eine Sendung zeigt Details: Hauptdarsteller, Kritik-Zusammenfassung, YouTube-Trailer (auf Android optional direkt im Quetta-Browser)
 - Tage bis +6, „Jetzt“-Linie, Hell/Dunkel
+- 💡 **Ratgeber** (Button unten rechts): täglich ein Tipp statt Fernsehen – für Ihn, für Sie, für beide – plus eine Anekdote aus der Fernsehgeschichte
 - **Hinweis:** enthält Demo-Programmdaten. Für echte Daten muss eine EPG-Quelle angebunden werden.
