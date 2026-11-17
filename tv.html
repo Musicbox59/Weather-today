@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b2433">
+<meta name="description" content="TV-Programmvorschau: Sender als Spalten, Zeit senkrecht, Start ab 20:15.">
+<title>TV-Programm</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='14' width='52' height='36' rx='6' fill='%233d7bfd'/%3E%3Cpath d='M24 4l8 10 8-10' stroke='%233d7bfd' stroke-width='4' fill='none'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#eef1f5; --panel:#ffffff; --head:#1b2433; --head-text:#fff; --text:#1c2430; --muted:#677385;
+    --line:#dde2e9; --line-hour:#c4ccd7; --block:#ffffff; --block-hover:#f4f7fb; --accent:#3d7bfd;
+    --now:#e5383b; --star:#f2a900; --star-off:#cfd5de; --shadow:0 1px 2px rgba(20,30,50,.08);
+    --c-film:#e5383b; --c-serie:#8a5cf6; --c-doku:#1f9d6b; --c-news:#3d7bfd; --c-show:#f08c00; --c-kids:#e64fa0; --c-sport:#0fa3b1;
+    --px:4px; /* Pixel pro Minute */
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#10141b; --panel:#171d27; --head:#0b0f15; --text:#e6eaf0; --muted:#94a0b2; --line:#252d3a; --line-hour:#344052;
+      --block:#1b2230; --block-hover:#222b3c; --star-off:#3d4757; --shadow:none;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10141b; --panel:#171d27; --head:#0b0f15; --text:#e6eaf0; --muted:#94a0b2; --line:#252d3a; --line-hour:#344052;
+    --block:#1b2230; --block-hover:#222b3c; --star-off:#3d4757; --shadow:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font:14px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       display:flex;flex-direction:column;overflow:hidden;-webkit-tap-highlight-color:transparent}
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+
+  /* Kopfbereich */
+  header{background:var(--head);color:var(--head-text);padding:calc(8px + env(safe-area-inset-top)) 12px 8px;flex:none}
+  .top{display:flex;align-items:center;gap:8px}
+  h1{font-size:18px;margin:0;flex:1;white-space:nowrap}
+  .icon-btn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none}
+  .icon-btn:hover{background:rgba(255,255,255,.12)}
+  .icon-btn svg{width:22px;height:22px}
+  .row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-top:8px;padding-bottom:2px}
+  .row::-webkit-scrollbar{display:none}
+  .chip{flex:none;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.1);color:#dfe6f1;font-size:13px;white-space:nowrap}
+  .chip:hover{background:rgba(255,255,255,.18)}
+  .chip.on{background:#fff;color:#1b2433;font-weight:600}
+  .chip.jump{background:transparent;border:1px solid rgba(255,255,255,.25)}
+  .chip.prime{border-color:var(--accent);color:#fff;background:rgba(61,123,253,.25)}
+
+  /* Raster */
+  #scroller{flex:1;overflow:auto;position:relative;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scroll-behavior:auto}
+  #grid{display:grid;min-width:100%;width:max-content}
+  .corner,.ch-head{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line-hour);height:46px}
+  .corner{left:0;z-index:7;display:grid;place-items:center;font-size:11px;color:var(--muted);border-right:1px solid var(--line)}
+  .ch-head{display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;font-size:14px;border-right:1px solid var(--line);padding:0 6px}
+  .ch-badge{width:10px;height:10px;border-radius:3px;flex:none}
+  .times{position:sticky;left:0;z-index:4;background:var(--panel);border-right:1px solid var(--line)}
+  .times span{position:absolute;right:6px;transform:translateY(-50%);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .times span.h{font-weight:700;color:var(--text);font-size:12px}
+  .times span:first-child{transform:none}
+  .col{position:relative;border-right:1px solid var(--line);
+       background-image:repeating-linear-gradient(to bottom,var(--line-hour) 0 1px,transparent 1px calc(var(--px)*30),var(--line) calc(var(--px)*30) calc(var(--px)*30 + 1px),transparent calc(var(--px)*30 + 1px) calc(var(--px)*60))}
+  .prog{position:absolute;left:3px;right:3px;background:var(--block);border-radius:6px;padding:4px 7px 4px 9px;overflow:hidden;cursor:pointer;
+        box-shadow:var(--shadow);border:1px solid var(--line);text-align:left;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;width:auto;transition:background .12s}
+  .prog::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cat)}
+  .prog:hover{background:var(--block-hover)}
+  .prog.live{border-color:var(--now);box-shadow:0 0 0 1px var(--now) inset}
+  .prog.past{opacity:.55}
+  .prog .t{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .prog .t b{color:var(--now);font-weight:700;margin-left:4px}
+  .prog .ti{font-weight:700;font-size:13.5px;line-height:1.2;margin:1px 0 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .prog .m{font-size:11.5px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .prog .g{color:var(--cat);font-weight:600}
+  .prog.short{padding-top:2px;padding-bottom:2px}
+  .prog.short .ti{-webkit-line-clamp:1;font-size:12px;margin:0}
+  .prog.tiny .t{display:none}
+  .stars{font-size:13px;letter-spacing:1px;line-height:1;display:inline-block;
+         background:linear-gradient(90deg,var(--star) calc(var(--r)/5*100%),var(--star-off) 0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .prog .stars{margin-top:3px;align-self:flex-start}
+  .nowline{position:absolute;left:0;right:0;height:2px;background:var(--now);z-index:3;pointer-events:none}
+  .nowline::before{content:"";position:absolute;left:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
+  .marker{position:absolute;left:0;right:0;border-top:2px dashed var(--accent);opacity:.5;z-index:2;pointer-events:none}
+
+  .note{flex:none;font-size:11px;color:var(--muted);text-align:center;padding:4px 10px calc(4px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
+
+  /* Detail-Blatt & Dialog */
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none;align-items:flex-end;justify-content:center}
+  .backdrop.open{display:flex}
+  .sheet{background:var(--panel);color:var(--text);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+         max-height:85vh;overflow:auto;animation:up .2s ease-out}
+  @media (min-width:640px){.backdrop{align-items:center}.sheet{border-radius:18px}}
+  @keyframes up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+  .sheet h2{margin:4px 0 6px;font-size:21px;line-height:1.2}
+  .sheet .sub{color:var(--muted);font-size:13px}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+  .tag{padding:4px 10px;border-radius:999px;background:var(--bg);font-size:13px}
+  .tag.cat{background:var(--cat);color:#fff;font-weight:600}
+  .sheet .stars{font-size:22px}
+  .sheet p{margin:10px 0 0;line-height:1.5}
+  .close{float:right;width:34px;height:34px;border-radius:50%;background:var(--bg);font-size:20px;line-height:1}
+  .ch-list{list-style:none;margin:12px 0 0;padding:0}
+  .ch-list li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .ch-list label{flex:1;display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600}
+  .ch-list input{width:20px;height:20px;accent-color:var(--accent)}
+  .mv{width:32px;height:32px;border-radius:8px;background:var(--bg)}
+  .mv:disabled{opacity:.3;cursor:default}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;font-size:12px;color:var(--muted)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>📺 TV-Programm</h1>
+    <button class="icon-btn" id="btnTheme" title="Hell/Dunkel" aria-label="Hell/Dunkel umschalten">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+    <button class="icon-btn" id="btnChannels" title="Sender verwalten" aria-label="Sender verwalten">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/><circle cx="18" cy="18" r="2.5"/></svg>
+    </button>
+  </div>
+  <div class="row" id="days"></div>
+  <div class="row" id="jumps"></div>
+</header>
+
+<div id="scroller"><div id="grid"></div></div>
+<div class="note">Demo-Programmdaten · Wischen ↑↓ für andere Uhrzeiten, ←→ für weitere Sender · Tippen für Details</div>
+
+<div class="backdrop" id="detail"><div class="sheet" id="detailBody"></div></div>
+<div class="backdrop" id="chDialog"><div class="sheet">
+  <button class="close" data-close>×</button>
+  <h2>Sender</h2>
+  <div class="sub">Sender ein-/ausblenden und Reihenfolge ändern.</div>
+  <ul class="ch-list" id="chList"></ul>
+  <div class="legend" id="legend"></div>
+</div></div>
+
+<script>
+/* ===================== Konfiguration ===================== */
+const DAY_START = 5 * 60;          // Sendetag beginnt um 05:00
+const DAY_LEN   = 24 * 60;         // bis 05:00 des Folgetags
+const PRIME     = 20 * 60 + 15;    // 20:15 Hauptabend
+const PX_PER_MIN = 4;
+
+const CATS = {
+  film:{label:'Film',  color:'var(--c-film)'},
+  serie:{label:'Serie',color:'var(--c-serie)'},
+  doku:{label:'Doku',  color:'var(--c-doku)'},
+  news:{label:'Info',  color:'var(--c-news)'},
+  show:{label:'Show',  color:'var(--c-show)'},
+  kids:{label:'Kinder',color:'var(--c-kids)'},
+  sport:{label:'Sport',color:'var(--c-sport)'}
+};
+
+/* ===================== Inhalte (Demo) ===================== */
+// [Titel, Genre, Jahr, Land, Sterne (nur Filme), Beschreibung]
+const FILMS = [
+  ['Die letzte Grenze','Thriller',2019,'Österreich/Deutschland',3.5,'Eine Zollbeamtin stößt an der Grenze auf ein Schmugglernetzwerk, das bis in die eigene Behörde reicht.'],
+  ['Schneesturm über Kaprun','Drama',2021,'Österreich',3,'Ein Wintersturm schließt eine Gruppe Fremder in einer Berghütte ein – alte Schuld kommt ans Licht.'],
+  ['Nachtzug nach Triest','Krimi',2017,'Österreich/Italien',4,'Im Schlafwagen wird ein Kunsthändler tot aufgefunden. Ein pensionierter Inspektor ermittelt.'],
+  ['Der Uhrmacher','Drama',2015,'Deutschland',4.5,'Ein alter Uhrmacher und sein jugendlicher Lehrling finden in einer schrumpfenden Kleinstadt zueinander.'],
+  ['Kalte Spur','Thriller',2022,'Deutschland',3,'Eine Profilerin jagt einen Serientäter, der nur im ersten Schnee zuschlägt.'],
+  ['Sommer am Wörthersee','Komödie',2018,'Österreich',2.5,'Zwei zerstrittene Familien buchen versehentlich dasselbe Ferienhaus.'],
+  ['Operation Nordlicht','Action',2020,'USA',3,'Ein Spezialteam soll eine entführte Forscherin aus einer arktischen Station befreien.'],
+  ['Die Erbschaft','Komödie',2016,'Frankreich',3.5,'Drei Geschwister müssen ein Jahr gemeinsam ein Weingut führen, um zu erben.'],
+  ['Stille Wasser','Thriller',2023,'Dänemark',4,'Nach dem Verschwinden ihrer Schwester kehrt eine Journalistin in ihr Heimatdorf an der Küste zurück.'],
+  ['Im Schatten des Doms','Krimi',2014,'Deutschland',3,'Ein Mord in der Dombauhütte führt die Kölner Kripo zu einem jahrhundertealten Geheimnis.'],
+  ['Das Glashaus','Science-Fiction',2021,'Großbritannien',4,'In einer abgeschotteten Forschungskuppel beginnt die KI, eigene Entscheidungen zu treffen.'],
+  ['Ferne Ufer','Liebesfilm',2013,'Italien',2.5,'Eine Fotografin verliebt sich auf Sizilien in einen Fischer – und in ein anderes Leben.'],
+  ['Westwind','Western',1968,'USA',4.5,'Ein alternder Sheriff stellt sich ein letztes Mal einer Bande von Viehdieben.'],
+  ['Die Brücke von Saint-Clair','Drama',2009,'Frankreich',4,'1944: Ein Dorf muss entscheiden, ob es seine Brücke sprengt.'],
+  ['Mitternachtsexpress Wien','Krimi',2020,'Österreich',3.5,'Ein Taxifahrer wird unfreiwillig zum Zeugen eines Raubüberfalls am Ring.'],
+  ['Grenzgänger','Thriller',2018,'Schweiz',3,'Ein Bankangestellter in Basel gerät zwischen Geheimdienste dreier Länder.'],
+  ['Lauf, Anna!','Drama',2022,'Deutschland',4,'Eine Marathonläuferin kämpft nach einem Unfall um ihr Comeback.'],
+  ['Der dritte Schlüssel','Mystery',2019,'Spanien',3.5,'Ein geerbtes Haus in Toledo hat ein Zimmer, das in keinem Plan verzeichnet ist.'],
+  ['Kleine große Liebe','Komödie',2011,'Deutschland',2,'Ein Hochzeitsplaner, der nicht an die Liebe glaubt, muss seine eigene Ex-Frau verheiraten.'],
+  ['Sturmflut','Katastrophenfilm',2016,'Niederlande',3,'Als die Deiche brechen, kämpft eine Familie in Zeeland ums Überleben.'],
+  ['Alpenglühen','Heimatfilm',1958,'Österreich',2.5,'Eine junge Sennerin und ein Städter aus Wien – Heimatfilm-Klassiker in Farbe.'],
+  ['Die Kunst des Fälschens','Krimikomödie',2017,'Großbritannien',3.5,'Ein Kunstfälscher soll für Scotland Yard ausgerechnet sein eigenes Werk entlarven.'],
+  ['Signal aus dem All','Science-Fiction',2024,'USA',3,'Ein Radioteleskop empfängt eine Nachricht, die nur eine Person entschlüsseln kann.'],
+  ['Der Fall Bergmann','Justizdrama',2021,'Deutschland',4,'Eine junge Pflichtverteidigerin übernimmt einen scheinbar aussichtslosen Mordprozess.'],
+  ['Bittersüße Tage','Tragikomödie',2019,'Frankreich',3.5,'Ein Pariser Konditor verliert seinen Geschmackssinn – und findet neue Rezepte fürs Leben.'],
+  ['Jäger der Tiefe','Abenteuer',2015,'USA',2.5,'Eine Taucherexpedition sucht im Pazifik nach einem verschollenen U-Boot.'],
+  ['Ein Haus am Meer','Drama',2020,'Portugal',4,'Drei Generationen von Frauen, ein verfallendes Haus an der Algarve und ein Sommer der Wahrheit.'],
+  ['Die Nacht der Spiegel','Horror',2018,'USA',2,'In einem leerstehenden Hotel zeigen die Spiegel, was gleich geschehen wird.'],
+  ['Kaiserschmarrn & Kugeln','Krimikomödie',2023,'Österreich',3,'Ein Wiener Kaffeehausbesitzer stolpert in die Ermittlungen um einen verschwundenen Lottogewinn.'],
+  ['Letzter Tanz in Lissabon','Thriller',2016,'Portugal/Frankreich',3.5,'Ein Tangolehrer wird in einen Spionagefall aus dem Kalten Krieg hineingezogen.'],
+  ['Der Pilot','Drama',1997,'Deutschland',4,'Ein Buschpilot in Namibia muss nach einer Notlandung tagelang durch die Wüste.'],
+  ['Funkstille','Psychothriller',2024,'Österreich',4.5,'Eine Radiomoderatorin erhält während der Nachtsendung Anrufe von einem Mann, der alles über sie weiß.'],
+];
+// [Titel, Genre, Jahr, Land, Beschreibung]
+const DOCS = [
+  ['Wildes Österreich – Die Hohen Tauern','Naturdoku',2022,'Österreich','Steinadler, Murmeltiere und Gletscher: ein Jahr im Nationalpark.'],
+  ['Die Donau – Lebensader Europas','Dokumentation',2019,'Österreich/Deutschland','Von der Quelle im Schwarzwald bis zum Delta am Schwarzen Meer.'],
+  ['Geheimnisse der Pharaonen','Geschichtsdoku',2020,'Frankreich','Neue Ausgrabungen werfen ein anderes Licht auf das Alte Reich.'],
+  ['Im Reich der Bären','Naturdoku',2021,'Österreich','Eine Braunbärenmutter und ihre Jungen in den Karpaten.'],
+  ['Die Alpen von oben','Dokumentation',2018,'Deutschland','Spektakuläre Flugaufnahmen vom Montblanc bis zum Großglockner.'],
+  ['Mythos Habsburg','Geschichtsdoku',2017,'Österreich','Aufstieg und Fall einer Dynastie, die Europa 600 Jahre prägte.'],
+  ['Ozeane im Wandel','Wissenschaftsdoku',2023,'Großbritannien','Wie sich Strömungen, Korallen und Fischbestände verändern.'],
+  ['Die Seidenstraße','Reisedoku',2016,'Deutschland/Frankreich','Eine Reise von Xi’an bis Istanbul entlang der alten Handelsroute.'],
+  ['Leben am Limit – Bergretter','Reportage',2024,'Österreich','Ein Winter mit der Bergrettung im Zillertal.'],
+  ['Das Rätsel der Zugvögel','Naturdoku',2022,'Frankreich','Wie finden Vögel über Tausende Kilometer ihren Weg?'],
+  ['Baumeister der Gotik','Kulturdoku',2015,'Frankreich','Wie die großen Kathedralen ohne Computer berechnet wurden.'],
+  ['Kosmos – Reise zum Rand','Wissenschaftsdoku',2025,'Deutschland','Neue Teleskopbilder und die Frage nach dem Anfang des Universums.'],
+  ['Venedig – Stadt im Wasser','Dokumentation',2019,'Italien','Zwischen Massentourismus, Hochwasser und Handwerkstradition.'],
+  ['Die großen Kaiserinnen','Geschichtsdoku',2021,'Österreich','Maria Theresia, Sisi und Zita – drei Frauen, drei Epochen.'],
+  ['Klima im Labor','Wissenschaftsdoku',2024,'Deutschland','Forschende testen Pflanzen und Böden für die Landwirtschaft von morgen.'],
+  ['Unterwegs in Lappland','Reisedoku',2020,'Finnland','Rentierzüchter, Polarlichter und die längste Nacht des Jahres.'],
+  ['Die Welt der Pilze','Naturdoku',2023,'Großbritannien','Das unterirdische Netzwerk, das Wälder verbindet.'],
+  ['Wiener Kaffeehäuser','Kulturdoku',2018,'Österreich','Melange, Marmortische und Literaten – eine Institution im Porträt.'],
+];
+// [Titel, Genre, Startjahr, Land, Beschreibung]
+const SERIES = [
+  ['Praxis am Wildsee','Arztserie',2023,'Österreich/Deutschland','Die Landärztin muss sich zwischen zwei Notfällen entscheiden.'],
+  ['Kommissariat Donaukanal','Krimiserie',2024,'Österreich','Ein Toter im Ruderboot – das Team ermittelt im Sportmilieu.'],
+  ['Familie Gruber','Comedyserie',2022,'Österreich','Opa Gruber will unbedingt bei einer Tanzshow mitmachen.'],
+  ['Die Kanzlei am Ring','Anwaltsserie',2021,'Deutschland','Ein Mietstreit eskaliert – und wird zum Fall für das ganze Team.'],
+  ['Hotel Edelweiss','Familienserie',2020,'Österreich','Hochsaison im Hotel, aber der Koch ist spurlos verschwunden.'],
+  ['Stadtwache Passau','Krimiserie',2023,'Deutschland','Ein Einbruch im Dommuseum gibt den Ermittlern Rätsel auf.'],
+  ['Dark Lake','Mysteryserie',2022,'Großbritannien','Im Nebel über dem See tauchen Lichter auf, die niemand erklären kann.'],
+  ['Notaufnahme Nord','Krankenhausserie',2024,'Deutschland','Eine Massenkarambolage bringt die Notaufnahme an ihre Grenzen.'],
+  ['Big City Laughs','Sitcom',2019,'USA','Vier Mitbewohner, eine Wohnung, null Privatsphäre.'],
+  ['Die Weinbauern','Familienserie',2021,'Österreich','Hagel kurz vor der Lese – die Familie muss zusammenhalten.'],
+  ['Inspector Hale','Krimiserie',2018,'Großbritannien','Ein Mord auf einem Landgut in Cornwall.'],
+  ['Grenzland','Krimiserie',2025,'Österreich/Slowenien','Ein Fall, der Ermittler beider Länder an einen Tisch zwingt.'],
+  ['Die Bergretterin','Actionserie',2022,'Deutschland','Eine Lawine verschüttet eine Schulklasse auf Skikurs.'],
+  ['Café Morgenrot','Telenovela',2025,'Deutschland','Lena erfährt endlich, wer ihr leiblicher Vater ist.'],
+];
+// [Titel, Genre, Land, Beschreibung]
+const SHOWS = [
+  ['Quiz-Duell der Länder','Quizshow','Deutschland','Zwei Teams aus Österreich und Deutschland treten gegeneinander an.'],
+  ['Der große Wissenstest','Quizshow','Österreich','Wer weiß mehr – das Studio oder das Publikum zu Hause?'],
+  ['Talk am Abend','Talkshow','Deutschland','Gäste aus Politik, Kultur und Sport diskutieren aktuelle Themen.'],
+  ['Gut gekocht!','Kochshow','Österreich','Heute: Kärntner Kasnudeln und Topfenpalatschinken.'],
+  ['Kabarett-Gipfel','Kabarett','Österreich','Die besten Nummern der aktuellen Kabarettsaison.'],
+  ['Stars im Studio','Unterhaltung','Deutschland','Prominente Gäste, Musik und Spiele.'],
+  ['Kultur kompakt','Kulturmagazin','Österreich','Ausstellungen, Theaterpremieren und neue Bücher.'],
+  ['Verbraucher-Check','Ratgeber','Deutschland','Was taugen günstige Winterreifen und Heizlüfter?'],
+  ['Garten & Natur','Ratgeber','Österreich','Rosen winterfest machen und Zwiebeln setzen.'],
+  ['Klassik live','Konzert','Frankreich','Ein Symphonieorchester spielt Brahms und Dvořák.'],
+  ['Land & Leute','Magazin','Österreich','Geschichten aus den Regionen.'],
+  ['Late Night Wien','Late-Night-Show','Österreich','Satirischer Wochenrückblick mit Studiogästen.'],
+];
+const KIDS = [
+  ['Die kleinen Waldforscher','Kinderserie',2021,'Österreich','Fuchs, Igel und Eule erklären den Wald.'],
+  ['Roboter Rudi','Animationsserie',2020,'Frankreich','Rudi lernt, was Freundschaft bedeutet.'],
+  ['Die Sterndetektive','Kinderserie',2023,'Deutschland','Drei Kinder lösen Rätsel rund ums Weltall.'],
+  ['Pip & Polly','Animationsserie',2019,'Großbritannien','Zwei Pinguine auf großer Reise.'],
+];
+const SPORT = [
+  ['Ski Alpin: Weltcup-Magazin','Sport','Österreich','Analysen und Highlights vom Wochenende.'],
+  ['Fußball: Länderspiel-Magazin','Sport','Deutschland','Berichte, Tore und Interviews.'],
+  ['Sport am Abend','Sportmagazin','Österreich','Aktuelle Ergebnisse und Hintergründe.'],
+];
+
+/* ===================== Sender ===================== */
+// Slots: [Startzeit, Typ] oder [Startzeit, {fester Eintrag}]
+const N = (title, genre='Nachrichten', desc='Aktuelle Nachrichten und Wetter.') => ({title, genre, cat:'news', desc});
+const CHANNELS = {
+  orf1:{name:'ORF 1', color:'#e5383b', country:'Österreich', slots:[
+    ['05:00','serie'],['06:00','kids'],['09:00','serie'],['10:30','serie'],['12:00','serie'],['13:00','show'],['14:30','serie'],['15:30','serie'],
+    ['16:30','show'],['17:30','serie'],['18:30','show'],['19:30','serie'],['20:15','film'],['22:00','film'],['23:45','serie'],['00:40','film'],['02:20','serie'],['03:10','serie'],['04:00','show']]},
+  orf2:{name:'ORF 2', color:'#c1121f', country:'Österreich', slots:[
+    ['05:00','doku'],['06:30',{title:'Guten Morgen Österreich',genre:'Magazin',cat:'show',desc:'Das Frühstücksfernsehen live aus einer Gemeinde in den Bundesländern.'}],
+    ['09:00',N('ZIB')],['09:05','serie'],['10:00','doku'],['11:00','show'],['13:00',N('ZIB 13')],['13:15','serie'],['14:00','serie'],['15:00','show'],['16:00','serie'],
+    ['17:00',N('ZIB 17')],['17:10','show'],['18:00','doku'],['19:00',N('Bundesland heute','Regionalnachrichten','Nachrichten aus den Bundesländern.')],
+    ['19:30',N('ZIB 1')],['19:50',N('Wetter','Wetterbericht','Das Wetter für Österreich.')],['20:00','sport'],['20:15','film'],['22:00',N('ZIB 2','Nachrichtenmagazin','Nachrichten, Analysen und Studiogespräche.')],
+    ['22:30','doku'],['23:20','film'],['01:00','serie'],['01:50','doku'],['02:45','show'],['03:40','doku']]},
+  orf3:{name:'ORF III', color:'#2a9d8f', country:'Österreich', slots:[
+    ['05:00','doku'],['06:00','show'],['08:00','doku'],['09:30','film'],['11:00','doku'],['12:00','serie'],['13:00','doku'],['14:30','film'],['16:15','doku'],
+    ['17:15','show'],['18:00','doku'],['19:00',{title:'Kultur Heute',genre:'Kulturmagazin',cat:'news',desc:'Das tägliche Kulturmagazin.'}],['19:25','doku'],
+    ['20:15','doku'],['21:05','doku'],['22:00','film'],['23:45','doku'],['00:40','show'],['01:30','doku'],['02:30','film'],['04:10','doku']]},
+  servus:{name:'ServusTV', color:'#7a5c3e', country:'Österreich', slots:[
+    ['05:00','show'],['06:00','doku'],['08:00','serie'],['10:00','doku'],['12:00','film'],['13:45','doku'],['15:00','serie'],['16:00','doku'],['17:00','show'],['18:00','doku'],
+    ['19:20',N('Servus Nachrichten')],['19:40','doku'],['20:15','film'],['22:10','show'],['23:20','film'],['01:05','doku'],['02:00','serie'],['03:00','doku'],['04:00','show']]},
+  arte:{name:'Arte', color:'#f77f00', country:'Deutschland/Frankreich', slots:[
+    ['05:00','doku'],['06:00','doku'],['08:00','doku'],['09:30','doku'],['11:00','serie'],['12:00','doku'],['13:00',N('ARTE Journal')],['13:05','film'],['14:45','doku'],
+    ['16:00','doku'],['17:00','doku'],['18:00','doku'],['19:20',N('ARTE Journal')],['19:40','doku'],['20:15','film'],['22:00','doku'],['22:55','film'],
+    ['00:35','show'],['01:45','doku'],['02:45','film'],['04:20','doku']]},
+  bayern:{name:'Bayern 3', color:'#0077b6', country:'Deutschland', slots:[
+    ['05:00','show'],['06:00','doku'],['07:30','serie'],['09:00','show'],['11:00','doku'],['12:00','serie'],['13:00','film'],['14:30','show'],['16:00','show'],['17:00','doku'],
+    ['18:00','show'],['18:30',N('Rundschau')],['19:00','show'],['19:30','serie'],['20:15','film'],['21:45',N('Rundschau')],['22:00','show'],['23:00','film'],
+    ['00:45','serie'],['01:30','doku'],['02:30','show'],['03:30','doku']]},
+  zdf:{name:'ZDF', color:'#fb8500', country:'Deutschland', slots:[
+    ['05:00','doku'],['05:30',{title:'Morgenmagazin',genre:'Magazin',cat:'show',desc:'Nachrichten, Service und Gäste am Morgen.'}],['09:00',N('heute Xpress')],['09:05','show'],
+    ['10:30','serie'],['11:15','serie'],['12:00',N('heute')],['12:10','show'],['14:00',N('heute')],['14:15','show'],['15:05','serie'],['16:00',N('heute')],['16:10','show'],
+    ['17:00',N('heute')],['17:15','show'],['18:00','serie'],['19:00',N('heute')],['19:25','serie'],['20:15','film'],
+    ['21:45',N('heute journal','Nachrichtenmagazin','Nachrichten, Hintergründe und Wetter.')],['22:15','show'],['23:00','film'],['00:40','serie'],['01:30','film'],['03:10','doku'],['04:15','show']]},
+  ard:{name:'ARD', color:'#1d3557', country:'Deutschland', slots:[
+    ['05:00','doku'],['05:30',{title:'Morgenmagazin',genre:'Magazin',cat:'show',desc:'Nachrichten, Service und Gäste am Morgen.'}],['09:00',N('Tagesschau')],['09:05','show'],
+    ['10:00','serie'],['11:00','serie'],['12:00',N('Tagesschau')],['12:10','show'],['14:00',N('Tagesschau')],['14:10','serie'],['15:10','show'],['16:00',N('Tagesschau')],
+    ['16:10','serie'],['17:00',N('Tagesschau')],['17:15','show'],['18:00','show'],['18:50','serie'],['19:45',N('Wirtschaft aktuell','Wirtschaftsmagazin','Börse und Wirtschaft kompakt.')],
+    ['20:00',N('Tagesschau')],['20:15','film'],['21:45','show'],['22:15',N('Tagesthemen','Nachrichtenmagazin','Nachrichten, Kommentare und Hintergründe.')],
+    ['22:50','doku'],['23:35','film'],['01:15','serie'],['02:00','film'],['03:40','doku']]},
+};
+// Zusätzliche Sender, die man in der Senderverwaltung einblenden kann
+const GENERIC = [['05:00','serie'],['07:00','show'],['09:00','serie'],['11:00','doku'],['12:30','serie'],['14:00','show'],['15:30','serie'],['17:00','show'],
+  ['18:00','serie'],['19:00','show'],['20:15','film'],['22:15','serie'],['23:10','film'],['01:00','serie'],['02:00','doku'],['03:00','show'],['04:00','serie']];
+Object.assign(CHANNELS, {
+  dreisat:{name:'3sat', color:'#6a4c93', country:'Deutschland/Österreich/Schweiz', slots:GENERIC.map(s=>s[1]==='show'?[s[0],'doku']:s)},
+  puls4:{name:'PULS 4', color:'#219ebc', country:'Österreich', slots:GENERIC},
+  atv:{name:'ATV', color:'#d00000', country:'Österreich', slots:GENERIC},
+  srf1:{name:'SRF 1', color:'#9d0208', country:'Schweiz', slots:GENERIC},
+  rtl:{name:'RTL', color:'#e63946', country:'Deutschland', slots:GENERIC},
+  vox:{name:'VOX', color:'#ef476f', country:'Deutschland', slots:GENERIC},
+});
+const DEFAULT_ORDER = ['orf1','orf2','orf3','servus','arte','bayern','zdf','ard'];
+
+/* ===================== Hilfsfunktionen ===================== */
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+function hash(str){ let h = 2166136261; for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h>>>0; }
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed>>>15, 1 | seed); t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t; return ((t ^ t>>>14)>>>0) / 4294967296; }; }
+function shuffled(arr, r){ const a = arr.slice(); for(let i=a.length-1;i>0;i--){ const j = Math.floor(r()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const toMin = hm => { const [h,m] = hm.split(':').map(Number); let v = h*60+m; return v < DAY_START ? v + 1440 : v; }; // nach Mitternacht -> Folgetag
+const fmt = m => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0'); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dateKey = d => d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+const starsHtml = r => `<span class="stars" style="--r:${r}" role="img" aria-label="Kritik: ${String(r).replace('.',',')} von 5 Sternen">★★★★★</span>`;
+
+/* Programm eines Senders für einen Sendetag erzeugen (deterministisch je Datum) */
+const cache = {};
+function schedule(chId, date){
+  const key = chId + '|' + dateKey(date);
+  if(cache[key]) return cache[key];
+  const ch = CHANNELS[chId], r = rng(hash(key)), year = date.getFullYear();
+  const pools = { film:shuffled(FILMS,r), doku:shuffled(DOCS,r), serie:shuffled(SERIES,r), show:shuffled(SHOWS,r), kids:shuffled(KIDS,r), sport:shuffled(SPORT,r) };
+  const idx = {film:0,doku:0,serie:0,show:0,kids:0,sport:0};
+  const take = t => pools[t][idx[t]++ % pools[t].length];
+  const list = ch.slots.map((s, i) => {
+    const start = toMin(s[0]);
+    const end = i < ch.slots.length-1 ? toMin(ch.slots[i+1][0]) : DAY_START + DAY_LEN;
+    let p;
+    if(typeof s[1] === 'object'){
+      p = {...s[1], year, country: ch.country.split('/')[0]};
+    } else if(s[1] === 'film'){
+      const f = take('film'); p = {title:f[0], genre:f[1], year:f[2], country:f[3], rating:f[4], desc:f[5], cat:'film'};
+    } else if(s[1] === 'doku'){
+      const d = take('doku'); p = {title:d[0], genre:d[1], year:d[2], country:d[3], desc:d[4], cat:'doku'};
+    } else if(s[1] === 'serie' || s[1] === 'kids'){
+      const d = take(s[1]); const st = 1 + Math.floor(r()*Math.max(1, year - d[2])), ep = 1 + Math.floor(r()*12);
+      p = {title:d[0], genre:d[1], year:d[2], country:d[3], desc:d[4], cat:s[1], episode:`Staffel ${st}, Folge ${ep}`};
+    } else {
+      const d = take(s[1]); p = {title:d[0], genre:d[1], year, country:d[2], desc:d[3], cat:s[1]};
+    }
+    return {...p, start, end, ch:chId};
+  });
+  return cache[key] = list;
+}
+
+/* ===================== Zustand ===================== */
+let order = store.get('tv.channels', DEFAULT_ORDER).filter(id => CHANNELS[id]);
+if(!order.length) order = DEFAULT_ORDER.slice();
+let dayOffset = 0;
+const scroller = $('#scroller'), grid = $('#grid');
+
+function broadcastDate(off){
+  // Vor 05:00 gehört die Sendung noch zum Vortag
+  const d = new Date(); if(d.getHours()*60 + d.getMinutes() < DAY_START) d.setDate(d.getDate()-1);
+  d.setDate(d.getDate()+off); d.setHours(12,0,0,0); return d;
+}
+function nowMinute(){
+  const d = new Date(); let m = d.getHours()*60 + d.getMinutes(); if(m < DAY_START) m += 1440; return m;
+}
+const yFor = m => (m - DAY_START) * PX_PER_MIN;
+
+/* ===================== Rendering ===================== */
+function renderDays(){
+  const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+  $('#days').innerHTML = Array.from({length:7}, (_, i) => {
+    const d = broadcastDate(i);
+    const label = i===0 ? 'Heute' : i===1 ? 'Morgen' : `${wd[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}.`;
+    return `<button class="chip ${i===dayOffset?'on':''}" data-day="${i}">${label}</button>`;
+  }).join('');
+}
+function renderJumps(){
+  const j = [['Jetzt','now'],['Früh','06:00'],['Mittag','12:00'],['Vorabend','18:00'],['20:15','20:15'],['22:00','22:00'],['Nacht','00:00']];
+  $('#jumps').innerHTML = j.map(([l,v]) => `<button class="chip jump ${v==='20:15'?'prime':''}" data-jump="${v}">${l}</button>`).join('');
+}
+
+function renderGrid(){
+  const date = broadcastDate(dayOffset);
+  const H = DAY_LEN * PX_PER_MIN;
+  const isToday = dayOffset === 0, now = nowMinute();
+  grid.style.gridTemplateColumns = `52px repeat(${order.length}, minmax(152px, 1fr))`;
+  document.documentElement.style.setProperty('--px', PX_PER_MIN + 'px');
+
+  let html = `<div class="corner">${date.getDate()}.${date.getMonth()+1}.</div>`;
+  html += order.map(id => `<div class="ch-head"><span class="ch-badge" style="background:${CHANNELS[id].color}"></span>${esc(CHANNELS[id].name)}</div>`).join('');
+
+  // Zeitachse
+  let t = `<div class="times" style="height:${H}px">`;
+  for(let m = DAY_START; m < DAY_START + DAY_LEN; m += 30){
+    t += `<span class="${m%60===0?'h':''}" style="top:${yFor(m)}px">${fmt(m)}</span>`;
+  }
+  html += t + '</div>';
+
+  // Spalten
+  for(const id of order){
+    let c = `<div class="col" style="height:${H}px">`;
+    for(const p of schedule(id, date)){
+      const h = (p.end - p.start) * PX_PER_MIN;
+      const live = isToday && now >= p.start && now < p.end, past = isToday && now >= p.end;
+      const dur = p.end - p.start;
+      const size = h < 36 ? 'short tiny' : h < 64 ? 'short' : '';
+      const meta = `<span class="g">${esc(p.genre)}</span> · ${esc(p.country)} ${p.year}`;
+      c += `<div role="button" tabindex="0" class="prog ${size} ${live?'live':''} ${past?'past':''}" style="top:${yFor(p.start)+1}px;height:${h-2}px;--cat:${CATS[p.cat].color}"
+              data-ch="${id}" data-start="${p.start}">
+              <div class="t">${fmt(p.start)} – ${fmt(p.end)}${live?'<b>LIVE</b>':''}</div>
+              <div class="ti">${esc(p.title)}</div>
+              ${h >= 64 ? `<div class="m">${meta}</div>` : ''}
+              ${p.rating && h >= 84 ? starsHtml(p.rating) : ''}
+            </div>`;
+    }
+    c += `<div class="marker" style="top:${yFor(PRIME)}px"></div>`;
+    if(isToday) c += `<div class="nowline" style="top:${yFor(now)}px"></div>`;
+    html += c + '</div>';
+  }
+  grid.innerHTML = html;
+}
+
+function scrollToMin(m, smooth){
+  scroller.scrollTo({top: Math.max(0, yFor(m) - 8), behavior: smooth ? 'smooth' : 'auto'});
+}
+
+function openDetail(chId, start){
+  const p = schedule(chId, broadcastDate(dayOffset)).find(x => x.start === start);
+  if(!p) return;
+  const ch = CHANNELS[chId], d = broadcastDate(dayOffset);
+  const dayTxt = d.toLocaleDateString('de-AT', {weekday:'long', day:'numeric', month:'long'});
+  $('#detailBody').innerHTML = `
+    <button class="close" data-close aria-label="Schließen">×</button>
+    <div class="sub"><span class="ch-badge" style="display:inline-block;background:${ch.color};margin-right:6px"></span>${esc(ch.name)} · ${dayTxt}</div>
+    <h2>${esc(p.title)}</h2>
+    <div class="sub">${fmt(p.start)} – ${fmt(p.end)} Uhr · ${p.end - p.start} Min.${p.episode ? ' · ' + p.episode : ''}</div>
+    <div class="tags" style="--cat:${CATS[p.cat].color}">
+      <span class="tag cat">${esc(p.genre)}</span>
+      <span class="tag">📅 ${p.year}</span>
+      <span class="tag">🌍 ${esc(p.country)}</span>
+    </div>
+    ${p.rating ? `<div>Kritik: ${starsHtml(p.rating)} <span class="sub">${String(p.rating).replace('.',',')}/5</span></div>` : ''}
+    <p>${esc(p.desc)}</p>`;
+  $('#detail').classList.add('open');
+}
+
+function renderChannelList(){
+  const all = [...order, ...Object.keys(CHANNELS).filter(id => !order.includes(id))];
+  $('#chList').innerHTML = all.map(id => {
+    const on = order.includes(id), i = order.indexOf(id);
+    return `<li>
+      <label><input type="checkbox" data-toggle="${id}" ${on?'checked':''}>
+        <span class="ch-badge" style="background:${CHANNELS[id].color}"></span>${esc(CHANNELS[id].name)}</label>
+      <button class="mv" data-up="${id}" ${!on||i===0?'disabled':''} aria-label="nach links">▲</button>
+      <button class="mv" data-down="${id}" ${!on||i===order.length-1?'disabled':''} aria-label="nach rechts">▼</button>
+    </li>`;
+  }).join('');
+  $('#legend').innerHTML = Object.values(CATS).map(c => `<span><i style="background:${c.color}"></i>${c.label}</span>`).join('');
+}
+function saveOrder(){
+  store.set('tv.channels', order);
+  const top = scroller.scrollTop; renderGrid(); scroller.scrollTop = top; renderChannelList();
+}
+
+/* ===================== Events ===================== */
+$('#days').addEventListener('click', e => {
+  const b = e.target.closest('[data-day]'); if(!b) return;
+  dayOffset = +b.dataset.day; const top = scroller.scrollTop;
+  renderDays(); renderGrid(); scroller.scrollTop = top;
+});
+$('#jumps').addEventListener('click', e => {
+  const b = e.target.closest('[data-jump]'); if(!b) return;
+  if(b.dataset.jump === 'now'){
+    if(dayOffset !== 0){ dayOffset = 0; renderDays(); renderGrid(); }
+    scrollToMin(nowMinute() - 30, true);
+  } else scrollToMin(toMin(b.dataset.jump), true);
+});
+grid.addEventListener('click', e => {
+  const b = e.target.closest('.prog'); if(b) openDetail(b.dataset.ch, +b.dataset.start);
+});
+document.querySelectorAll('.backdrop').forEach(bd => bd.addEventListener('click', e => {
+  if(e.target === bd || e.target.closest('[data-close]')) bd.classList.remove('open');
+}));
+grid.addEventListener('keydown', e => {
+  const b = e.target.closest('.prog'); if(b && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openDetail(b.dataset.ch, +b.dataset.start); }
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape') document.querySelectorAll('.backdrop.open').forEach(b => b.classList.remove('open')); });
+$('#btnChannels').addEventListener('click', () => { renderChannelList(); $('#chDialog').classList.add('open'); });
+$('#chList').addEventListener('click', e => {
+  const up = e.target.closest('[data-up]'), down = e.target.closest('[data-down]');
+  if(up){ const i = order.indexOf(up.dataset.up); [order[i-1],order[i]] = [order[i],order[i-1]]; saveOrder(); }
+  if(down){ const i = order.indexOf(down.dataset.down); [order[i+1],order[i]] = [order[i],order[i+1]]; saveOrder(); }
+});
+$('#chList').addEventListener('change', e => {
+  const id = e.target.dataset.toggle; if(!id) return;
+  if(e.target.checked) order.push(id);
+  else if(order.length > 1) order = order.filter(x => x !== id);
+  else e.target.checked = true; // mindestens ein Sender
+  saveOrder();
+});
+// Hell/Dunkel
+const savedTheme = store.get('tv.theme', null);
+if(savedTheme) document.documentElement.dataset.theme = savedTheme;
+$('#btnTheme').addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+  store.set('tv.theme', document.documentElement.dataset.theme);
+});
+// Live-Markierung jede Minute aktualisieren
+setInterval(() => { if(dayOffset === 0){ const top = scroller.scrollTop; renderGrid(); scroller.scrollTop = top; } }, 60000);
+
+/* ===================== Start ===================== */
+renderDays(); renderJumps(); renderGrid();
+scrollToMin(PRIME);   // Standard: Ausschnitt ab 20:15
+</script>
+</body>
+</html>

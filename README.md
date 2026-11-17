@@ -21,3 +21,10 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 GPS funktioniert im Browser nur über **HTTPS**. Am einfachsten über GitHub Pages:
 Repository → *Settings* → *Pages* → Branch auswählen → Ordner `/ (root)`.
 Danach die Seite auf dem Smartphone öffnen und über „Zum Startbildschirm hinzufügen“ wie eine App nutzen.
+
+## TV-Programm (`tv.html`)
+Programmvorschau als einzelne HTML-Datei: je Sender eine Spalte, die Zeit läuft senkrecht. Startet immer beim Ausschnitt ab **20:15**; durch Wischen nach oben/unten sieht man die übrigen Sendungen (05:00–05:00), nach links/rechts weitere Sender.
+- Startsender: ORF 1, ORF 2, ORF III, ServusTV, Arte, Bayern 3, ZDF, ARD (weitere über ☰ ein-/ausblenden und sortieren)
+- Je Sendung: Art (Doku, Thriller, …), Produktionsjahr, Land; bei Filmen Kritik in Sternen
+- Tippen auf eine Sendung zeigt Details; Tage bis +6, „Jetzt“-Linie, Hell/Dunkel
+- **Hinweis:** enthält Demo-Programmdaten. Für echte Daten muss eine EPG-Quelle angebunden werden.
