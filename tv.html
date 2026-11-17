@@ -105,6 +105,20 @@
   .mv:disabled{opacity:.3;cursor:default}
   .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;font-size:12px;color:var(--muted)}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  .sec{margin-top:16px}
+  .sec h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
+  .cast{display:flex;flex-wrap:wrap;gap:6px}
+  .cast span{padding:5px 10px;border-radius:8px;background:var(--bg);font-size:13px}
+  .cast small{color:var(--muted)}
+  .review{margin:0;padding:10px 12px;border-left:3px solid var(--star);background:var(--bg);border-radius:0 8px 8px 0;font-style:italic;line-height:1.5}
+  .review cite{display:block;font-style:normal;font-size:12px;color:var(--muted);margin-top:4px}
+  .trailer{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;padding:12px;border-radius:12px;background:#e62117;color:#fff;
+           font-weight:700;text-decoration:none;font-size:15px}
+  .trailer:hover{filter:brightness(1.08)}
+  .trailer.alt{background:var(--bg);color:var(--text);font-weight:600;font-size:13px;padding:9px}
+  .opt{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:14px}
+  .opt input{width:20px;height:20px;accent-color:var(--accent)}
+  .opt small{display:block;color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
@@ -132,6 +146,8 @@
   <div class="sub">Sender ein-/ausblenden und Reihenfolge ändern.</div>
   <ul class="ch-list" id="chList"></ul>
   <div class="legend" id="legend"></div>
+  <label class="opt"><input type="checkbox" id="optQuetta">
+    <span>Trailer in Quetta öffnen<small>Nur Android: Öffnet YouTube-Trailer im Quetta-Browser, falls installiert – sonst normal.</small></span></label>
 </div></div>
 
 <script>
@@ -240,6 +256,52 @@ const SHOWS = [
   ['Land & Leute','Magazin','Österreich','Geschichten aus den Regionen.'],
   ['Late Night Wien','Late-Night-Show','Österreich','Satirischer Wochenrückblick mit Studiogästen.'],
 ];
+// Besetzung [Schauspieler, Rolle] und Kritik-Zusammenfassung je Film (Demo)
+const FILM_EXTRA = {
+  'Die letzte Grenze':[[['Julia Brandner','Zollinspektorin Lena Moser'],['Tobias Reiter','Max Wallner'],['Sophie Kern','Staatsanwältin Huber']],'Packend inszeniert, mit starker Hauptdarstellerin. Im letzten Drittel etwas vorhersehbar.'],
+  'Schneesturm über Kaprun':[[['Markus Steiner','Hüttenwirt Sepp'],['Anna Lindner','Clara'],['Felix Hofer','Jonas']],'Atmosphärisches Kammerspiel mit eindrucksvollen Bildern, dramaturgisch aber mit Längen.'],
+  'Nachtzug nach Triest':[[['Peter Gruber','Inspektor Hartl'],['Giulia Rossi','Elena Ferro'],['Karl Moser','Kunsthändler Brandt']],'Eleganter Krimi im Stil der Klassiker – witzig, stilsicher und bis zum Schluss spannend.'],
+  'Der Uhrmacher':[[['Hans Weidinger','Anton Haller'],['Leon Fischer','Tim'],['Maria Berger','Gerda']],'Ein leiser, berührender Film über Zeit und Vergänglichkeit. Von der Kritik als kleines Meisterwerk gefeiert.'],
+  'Kalte Spur':[[['Katrin Vogel','Profilerin Dr. Sanders'],['Michael Brenner','Kommissar Kolb'],['Jan Petersen','Henrik']],'Solider Genre-Thriller mit dichter Atmosphäre, der aber kaum Neues wagt.'],
+  'Sommer am Wörthersee':[[['Lukas Pichler','Gerhard Wimmer'],['Eva Hammer','Brigitte'],['Thomas Leitner','Herbert Koller']],'Harmlose Sommerkomödie mit ein paar gelungenen Gags – nett für zwischendurch.'],
+  'Operation Nordlicht':[[['Ryan Cole','Major Jack Turner'],['Emily Shaw','Dr. Sarah Lind'],['Marcus Grant','Colonel Hayes']],'Routinierter Actionfilm mit spektakulären Eis-Kulissen, aber dünner Handlung.'],
+  'Die Erbschaft':[[['Claire Dubois','Isabelle'],['Julien Moreau','Antoine'],['Lucie Martin','Camille']],'Charmante Familienkomödie mit pointierten Dialogen und viel südfranzösischem Flair.'],
+  'Stille Wasser':[[['Sofie Larsen','Mette Holm'],['Anders Nielsen','Polizist Bjarne'],['Freja Madsen','Ida']],'Nordic Noir in Bestform: bedrückend, präzise erzählt und hervorragend gespielt.'],
+  'Im Schatten des Doms':[[['Stefan Krüger','Hauptkommissar Lenz'],['Nina Albrecht','Kommissarin Weber'],['Paul Wagner','Dombaumeister Roth']],'Ordentlicher TV-Krimi mit schöner Kölner Kulisse, aber konventioneller Auflösung.'],
+  'Das Glashaus':[[['Oliver Hughes','Dr. Thomas Reed'],['Hannah Price','Ava'],['George Ellis','Commander Walsh']],'Kluge, visuell starke Science-Fiction, die mehr Fragen stellt als beantwortet – im besten Sinne.'],
+  'Ferne Ufer':[[['Chiara Bianchi','Laura'],['Marco De Luca','Salvatore'],['Paola Conti','Nonna Rosa']],'Wunderschöne Landschaftsbilder, doch die Liebesgeschichte bleibt an der Oberfläche.'],
+  'Westwind':[[['John Carver','Sheriff Will Dawson'],['Robert Hale','Jake Morrow'],['Mary Ellen Ford','Martha']],'Ein Spätwestern-Klassiker: melancholisch, kraftvoll und großartig fotografiert.'],
+  'Die Brücke von Saint-Clair':[[['Pierre Laurent','Bürgermeister Marchand'],['Élise Fontaine','Jeanne'],['Henri Blanc','Pater Michel']],'Bewegendes Kriegsdrama, das moralische Fragen ohne Pathos verhandelt.'],
+  'Mitternachtsexpress Wien':[[['Florian Huber','Taxler Ferdinand'],['Lisa Wallner','Inspektorin Kraus'],['Georg Mayr','Rudi']],'Wiener Schmäh trifft Spannung – ein unterhaltsamer Krimi mit Lokalkolorit.'],
+  'Grenzgänger':[[['Urs Baumann','Daniel Keller'],['Nadine Meier','Simone'],['René Frei','Agent Brunner']],'Spannende Agentengeschichte, die sich stellenweise im Verwirrspiel verliert.'],
+  'Lauf, Anna!':[[['Lena Schuster','Anna Berg'],['Daniel Roth','Trainer Klaus'],['Ute Lange','Mutter Inge']],'Mitreißendes Sportdrama mit einer herausragenden Hauptdarstellerin.'],
+  'Der dritte Schlüssel':[[['Lucía Fernández','Marta'],['Javier Ortega','Andrés'],['Carmen Ruiz','Tante Pilar']],'Stimmungsvoller Mystery-Film mit gelungenen Wendungen und schaurig-schöner Kulisse.'],
+  'Kleine große Liebe':[[['Jan Becker','Ben'],['Miriam Koch','Sarah'],['Rolf Schmitt','Vater Horst']],'Romantische Komödie nach Schema F – nur wenige Pointen zünden.'],
+  'Sturmflut':[[['Daan de Vries','Pieter'],['Sanne Jansen','Marieke'],['Bram Visser','Opa Henk']],'Effektvolles Katastrophenkino mit echten Emotionen, aber klischeehaften Figuren.'],
+  'Alpenglühen':[[['Gretl Aigner','Sennerin Resi'],['Walter Haas','Dr. Robert Stein'],['Franz Ebner','Bauer Loisl']],'Nostalgischer Heimatfilm: kitschig, aber mit schönen Farbaufnahmen der Bergwelt.'],
+  'Die Kunst des Fälschens':[[['Edward Blake','Arthur Finch'],['Charlotte Reid','Inspector Morgan'],['Simon Ashby','Lord Pemberton']],'Britischer Witz vom Feinsten – eine leichtfüßige, clevere Gaunerkomödie.'],
+  'Signal aus dem All':[[['Megan Torres','Dr. Kate Rivera'],['David Klein','Prof. Adams'],['Chris Monroe','General Price']],'Interessante Prämisse, die zugunsten von Effekten zu wenig ausgespielt wird.'],
+  'Der Fall Bergmann':[[['Clara Neumann','Anwältin Julia Hartmann'],['Martin Seidel','Thomas Bergmann'],['Werner Pohl','Richter Kluge']],'Intensives Justizdrama mit präzisen Dialogen und starkem Ensemble.'],
+  'Bittersüße Tage':[[['François Leroy','Louis'],['Amélie Girard','Sophie'],['Bernard Petit','Monsieur Roux']],'Warmherzige Tragikomödie mit viel Gefühl und einem Hauch Melancholie.'],
+  'Jäger der Tiefe':[[['Mike Sanders','Captain Cole'],['Lisa Warren','Dr. Jenna Park'],['Tony Russo','Sully']],'Abenteuerfilm mit schönen Unterwasseraufnahmen, aber flachen Charakteren.'],
+  'Ein Haus am Meer':[[['Inês Costa','Teresa'],['Ana Pereira','Beatriz'],['Rita Sousa','Avó Lurdes']],'Feinfühliges Familiendrama – poetisch, ruhig und wunderbar gespielt.'],
+  'Die Nacht der Spiegel':[[['Kayla Morgan','Jess'],['Ben Turner','Ethan'],['Lucas Hill','Hotelbesitzer Gray']],'Ein paar gelungene Schockmomente, sonst wenig originell.'],
+  'Kaiserschmarrn & Kugeln':[[['Andreas Gruber','Leopold Kainz'],['Birgit Kofler','Inspektorin Novak'],['Herbert Lang','Ober Franz']],'Schräge Krimikomödie mit typisch österreichischem Humor – nicht immer treffsicher, aber sympathisch.'],
+  'Letzter Tanz in Lissabon':[[['Tiago Ramos','Rafael'],['Camille Bernard','Nathalie'],['Paulo Neves','Oberst Matos']],'Stilvoller Thriller mit großartiger Musik und dichter Lissabon-Atmosphäre.'],
+  'Der Pilot':[[['Klaus Hartmann','Frank Weber'],['Thabo Nkosi','Joseph'],['Ingrid Wolf','Helga Weber']],'Ein packender Überlebensfilm, getragen von einer eindringlichen Hauptrolle.'],
+  'Funkstille':[[['Verena Holzer','Moderatorin Kathi Brunner'],['Simon Reisinger','Anrufer'],['Johanna Pfeiffer','Produzentin Eva']],'Nervenzerreißender Psychothriller – minimalistisch und brillant gespielt. Einer der besten heimischen Filme des Jahres.'],
+};
+// Besetzung für Serien (Demo, deterministisch aus Namen erzeugt)
+const FIRST = ['Anna','Lukas','Sophie','Maximilian','Laura','Felix','Julia','David','Lena','Jakob','Marie','Paul','Sarah','Simon','Katharina','Michael','Eva','Florian','Hannah','Thomas'];
+const LAST  = ['Huber','Gruber','Bauer','Wagner','Müller','Pichler','Steiner','Moser','Mayer','Hofer','Leitner','Berger','Fuchs','Eder','Fischer','Schwarz','Weber','Schmid','Winkler','Lang'];
+const SERIES_REVIEW = {
+  Krimiserie:'Spannende Fälle und ein eingespieltes Ermittlerteam – solide Krimi-Unterhaltung.',
+  Comedyserie:'Gute Laune garantiert: pointierte Dialoge und liebenswerte Figuren.',
+  Sitcom:'Klassische Sitcom-Kost mit einigen sehr witzigen Momenten.',
+  Mysteryserie:'Rätselhaft und atmosphärisch – macht Lust auf die nächste Folge.',
+  default:'Unterhaltsame Serie mit sympathischem Ensemble, die ihr Publikum treu begleitet.'
+};
+
 const KIDS = [
   ['Die kleinen Waldforscher','Kinderserie',2021,'Österreich','Fuchs, Igel und Eule erklären den Wald.'],
   ['Roboter Rudi','Animationsserie',2020,'Frankreich','Rudi lernt, was Freundschaft bedeutet.'],
@@ -336,12 +398,13 @@ function schedule(chId, date){
     if(typeof s[1] === 'object'){
       p = {...s[1], year, country: ch.country.split('/')[0]};
     } else if(s[1] === 'film'){
-      const f = take('film'); p = {title:f[0], genre:f[1], year:f[2], country:f[3], rating:f[4], desc:f[5], cat:'film'};
+      const f = take('film'); p = {title:f[0], genre:f[1], year:f[2], country:f[3], rating:f[4], desc:f[5], cat:'film', cast:(FILM_EXTRA[f[0]]||[])[0], review:(FILM_EXTRA[f[0]]||[])[1]};
     } else if(s[1] === 'doku'){
       const d = take('doku'); p = {title:d[0], genre:d[1], year:d[2], country:d[3], desc:d[4], cat:'doku'};
     } else if(s[1] === 'serie' || s[1] === 'kids'){
       const d = take(s[1]); const st = 1 + Math.floor(r()*Math.max(1, year - d[2])), ep = 1 + Math.floor(r()*12);
       p = {title:d[0], genre:d[1], year:d[2], country:d[3], desc:d[4], cat:s[1], episode:`Staffel ${st}, Folge ${ep}`};
+      if(s[1] === 'serie'){ const rr = rng(hash(d[0])); p.cast = [0,1,2].map(() => [FIRST[Math.floor(rr()*FIRST.length)] + ' ' + LAST[Math.floor(rr()*LAST.length)], '']); p.review = SERIES_REVIEW[d[1]] || SERIES_REVIEW.default; }
     } else {
       const d = take(s[1]); p = {title:d[0], genre:d[1], year, country:d[2], desc:d[3], cat:s[1]};
     }
@@ -425,6 +488,20 @@ function scrollToMin(m, smooth){
   scroller.scrollTo({top: Math.max(0, yFor(m) - 8), behavior: smooth ? 'smooth' : 'auto'});
 }
 
+/* Trailer: YouTube-Suche; auf Android optional direkt im Quetta-Browser öffnen */
+const QUETTA_PKG = 'net.quetta.browser';
+const isAndroid = /Android/i.test(navigator.userAgent);
+let useQuetta = store.get('tv.quetta', true);
+function trailerUrl(p){
+  const q = encodeURIComponent(`${p.title} ${p.cat === 'film' ? p.year + ' ' : ''}Trailer`);
+  return `https://www.youtube.com/results?search_query=${q}`;
+}
+function quettaUrl(url){
+  // Android-Intent: öffnet die Seite in Quetta; ist Quetta nicht installiert, wird die normale URL geöffnet
+  const u = new URL(url);
+  return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=${QUETTA_PKG};S.browser_fallback_url=${encodeURIComponent(url)};end`;
+}
+
 function openDetail(chId, start){
   const p = schedule(chId, broadcastDate(dayOffset)).find(x => x.start === start);
   if(!p) return;
@@ -441,7 +518,17 @@ function openDetail(chId, start){
       <span class="tag">🌍 ${esc(p.country)}</span>
     </div>
     ${p.rating ? `<div>Kritik: ${starsHtml(p.rating)} <span class="sub">${String(p.rating).replace('.',',')}/5</span></div>` : ''}
-    <p>${esc(p.desc)}</p>`;
+    <p>${esc(p.desc)}</p>
+    ${p.cast && p.cast.length ? `<div class="sec"><h3>Hauptdarsteller</h3><div class="cast">
+      ${p.cast.map(([n, r]) => `<span>${esc(n)}${r ? ` <small>als ${esc(r)}</small>` : ''}</span>`).join('')}</div></div>` : ''}
+    ${p.review ? `<div class="sec"><h3>Kritiken</h3><blockquote class="review">${esc(p.review)}
+      <cite>Zusammenfassung der Pressestimmen${p.rating ? ` · Ø ${String(p.rating).replace('.',',')}/5` : ''}</cite></blockquote></div>` : ''}
+    ${p.cat !== 'news' ? (() => {
+      const url = trailerUrl(p), q = isAndroid && useQuetta;
+      return `<div class="sec"><h3>Trailer</h3>
+        <a class="trailer" href="${esc(q ? quettaUrl(url) : url)}" target="_blank" rel="noopener">▶ Trailer auf YouTube${q ? ' (in Quetta)' : ''}</a>
+        ${q ? `<a class="trailer alt" href="${esc(url)}" target="_blank" rel="noopener">Im Standardbrowser / YouTube-App öffnen</a>` : ''}</div>`;
+    })() : ''}`;
   $('#detail').classList.add('open');
 }
 
@@ -486,6 +573,8 @@ grid.addEventListener('keydown', e => {
   const b = e.target.closest('.prog'); if(b && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openDetail(b.dataset.ch, +b.dataset.start); }
 });
 document.addEventListener('keydown', e => { if(e.key === 'Escape') document.querySelectorAll('.backdrop.open').forEach(b => b.classList.remove('open')); });
+$('#optQuetta').checked = useQuetta;
+$('#optQuetta').addEventListener('change', e => { useQuetta = e.target.checked; store.set('tv.quetta', useQuetta); });
 $('#btnChannels').addEventListener('click', () => { renderChannelList(); $('#chDialog').classList.add('open'); });
 $('#chList').addEventListener('click', e => {
   const up = e.target.closest('[data-up]'), down = e.target.closest('[data-down]');
