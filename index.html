@@ -203,6 +203,10 @@
   .hrow.time .hcell{color:var(--muted);padding-top:8px;font-weight:600}
   .hrow.rain .hcell{color:var(--rain);font-size:12px;padding:2px 0}
   .hrow.wind .hcell{color:var(--muted);font-size:12px;padding:2px 0 10px}
+  .hrow.wind .hcell b{color:var(--text,#1d2733);font-weight:600;white-space:nowrap}
+  .hrow.wind .gst{display:inline-block;margin-top:2px;font-size:11px;white-space:nowrap}
+  .hrow.wind .gst.mid{color:#c46a00;font-weight:600}
+  .hrow.wind .gst.hi{color:#d0342c;font-weight:700}
   .hcell.newday{border-left:1px dashed #b9c6d4}
   .daytile{cursor:pointer;padding:8px 2px;border-right:1px solid var(--line)}
   .daytile:last-child{border-right:0}
@@ -1223,17 +1227,16 @@ function viewToday() {
       <div><small>${tr('UV-Index max.', 'Max. UV index')}</small><b>${r0(D.uv_index_max[0])}</b></div>
     </div>
   </div>
-  <div class="card" id="allergyCard">${allergyHTML()}</div>
-  <div class="card"><h2>${tr('Tagesverlauf heute', 'Today at a glance')} <span>${(LANG === 'en' ? WDL_EN : WDL_DE)[pd(D.time[0]).getDay()]}, ${dshort(D.time[0])}</span></h2>${segsHTML(D.time[0])}</div>
   <div class="card"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
       <div class="hrow time">${idx.map((i, k) => cell(k === 0 ? tr('Jetzt', 'Now') : hourLbl(H.time[i]), i, k)).join('')}</div>
       <div class="hrow">${idx.map((i, k) => cell(polIcon(H.time[i].slice(0, 10), icon(H.weather_code[i], H.is_day[i], 38), +H.time[i].slice(11, 13), +H.time[i].slice(11, 13) + 1), i, k)).join('')}</div>
       ${chart([{ v: idx.map(i => cT(H.temperature_2m[i])), color: '#e0712c' }], idx.length, W, 84)}
       <div class="hrow rain">${idx.map((i, k) => cell((H.precipitation_probability[i] ?? '–') + ' %' + (H.precipitation[i] >= 0.1 ? '<br>' + mm(H.precipitation[i]) : ''), i, k)).join('')}</div>
-      <div class="hrow wind">${idx.map((i, k) => cell(arrow(H.wind_direction_10m[i]) + '<br>' + wv(H.wind_speed_10m[i]), i, k)).join('')}</div>
+      <div class="hrow wind">${idx.map((i, k) => cell(arrow(H.wind_direction_10m[i]) + '<br><b>' + ws(H.wind_speed_10m[i]) + '</b><br><span class="gst' + ((H.wind_gusts_10m[i] || 0) >= 60 ? ' hi' : (H.wind_gusts_10m[i] || 0) >= 40 ? ' mid' : '') + '">' + tr('Böen', 'Gusts') + ' ' + wv(H.wind_gusts_10m[i]) + '</span>', i, k)).join('')}</div>
     </div></div>
   </div>
+  <div class="card" id="allergyCard">${allergyHTML()}</div>
   <div class="card"><h2>👗 ${tr('Was ziehe ich heute an?', 'What to wear today?')} ${genderSwitch()}</h2>${outfitHTML(0)}</div>
   <p class="note">${tr('Stand: ', 'Updated: ') + withUhr(C.time.slice(11, 16)) + tr(' (Ortszeit) · Wind in ', ' (local time) · wind in ') + wUnit()}</p>`;
 }
