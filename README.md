@@ -30,4 +30,6 @@ Programmvorschau als einzelne HTML-Datei: je Sender eine Spalte, die Zeit läuft
 - Tage bis +6, „Jetzt“-Linie, Hell/Dunkel
 - 🐦 **Amsel** fliegt über die Seite, setzt sich auf Kopfbereich, Senderköpfe und Trennstriche zwischen Sendungen und singt (`media/amsel.mp3`; Ton über 🔊 im Kopf an/aus)
 - 💡 **Ratgeber** (Button unten rechts): täglich ein Tipp statt Fernsehen – für Ihn, für Sie, für beide – plus eine Anekdote aus der Fernsehgeschichte
-- **Hinweis:** enthält Demo-Programmdaten. Für echte Daten muss eine EPG-Quelle angebunden werden.
+- **Programmdaten:** `tv.html` lädt echte Daten aus `data/epg.json`. Diese Datei erzeugt der GitHub-Workflow `.github/workflows/epg.yml` zweimal täglich mit `scripts/update_epg.py` aus den frei verfügbaren XMLTV-Dateien von epgshare01.online. Fehlt die Datei (z. B. wenn `tv.html` lokal geöffnet wird), zeigt die Seite Demo-Daten.
+  - Erstmals manuell starten: *Actions* → „TV-Programmdaten aktualisieren“ → *Run workflow*.
+  - Die geplanten Läufe starten nur auf dem Standard-Branch (main).

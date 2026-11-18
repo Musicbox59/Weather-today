@@ -219,7 +219,7 @@
 </header>
 
 <div id="scroller"><div id="grid"></div></div>
-<div class="note">Demo-Programmdaten · Wischen ↑↓ für andere Uhrzeiten, ←→ für weitere Sender · Tippen für Details</div>
+<div class="note"><span id="dataInfo">Demo-Programmdaten</span> · Wischen ↑↓ für andere Uhrzeiten, ←→ für weitere Sender · Tippen für Details</div>
 
 <div id="birdLayer" aria-hidden="true">
   <div class="bird"><div class="bird-tilt"><div class="bird-flip">
@@ -492,11 +492,58 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 const dateKey = d => d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
 const starsHtml = r => `<span class="stars" style="--r:${r}" role="img" aria-label="Kritik: ${String(r).replace('.',',')} von 5 Sternen">★★★★★</span>`;
 
-/* Programm eines Senders für einen Sendetag erzeugen (deterministisch je Datum) */
+/* ===================== Echte Programmdaten (data/epg.json) ===================== */
+let EPG = null;   // wird vom GitHub-Workflow täglich aus XMLTV erzeugt (scripts/update_epg.py)
+function classify(cats, title, dur, ep){
+  const k = ((cats || []).join(' ') + ' ' + title).toLowerCase();
+  if(/spielfilm|fernsehfilm|kinofilm|tv-film|movie/.test(k)) return 'film';
+  if(/nachricht|news|\bzib\b|tagesschau|tagesthemen|heute journal|^heute|wetter|rundschau|journal/.test(k)) return 'news';
+  if(/sport|fußball|fussball|ski alpin|biathlon|formel 1|tennis|eishockey/.test(k)) return 'sport';
+  if(/kinder|kids|zeichentrick|animation|trickfilm/.test(k)) return 'kids';
+  if(/doku|dokumentation|reportage|documentary|natur|reise/.test(k)) return 'doku';
+  if(/serie|series|soap|sitcom|telenovela/.test(k) || ep) return 'serie';
+  if(dur >= 70 && /film|thriller|krimi|komödie|drama|western|action|horror|abenteuer|science|romanze|liebe/.test(k)) return 'film';
+  return 'show';
+}
+function realSchedule(chId, date){
+  const list = (EPG.channels || {})[chId];
+  if(!list) return [];
+  const d0 = new Date(date); d0.setHours(5, 0, 0, 0);
+  const t0 = d0.getTime(), t1 = t0 + DAY_LEN * 60000;
+  const out = [];
+  for(const x of list){
+    const s = x.s * 1000, e = x.e * 1000;
+    if(e <= t0 || s >= t1) continue;
+    const start = DAY_START + Math.max(0, Math.round((s - t0) / 60000));
+    const end = DAY_START + Math.min(DAY_LEN, Math.round((e - t0) / 60000));
+    if(end - start < 1) continue;
+    const cat = classify(x.c, x.t, (e - s) / 60000, x.ep);
+    out.push({ title: x.t, subtitle: x.st || '', desc: x.d || '', genre: (x.c && x.c[0]) || CATS[cat].label,
+      cats: x.c || [], year: x.y || '', country: x.co || '', rating: x.r || 0, cast: x.a || null, director: x.dir || null,
+      episode: x.ep || '', cat, start, end, ch: chId, real: true });
+  }
+  return out;
+}
+async function loadEpg(){
+  try{
+    const r = await fetch('data/epg.json', { cache: 'no-cache' });
+    if(!r.ok) return;
+    const j = await r.json();
+    if(!j.channels || !Object.keys(j.channels).length) return;
+    EPG = j;
+    for(const k in cache) delete cache[k];
+    const g = new Date(j.generated);
+    $('#dataInfo').textContent = `Programmdaten: ${j.source || 'XMLTV'} · Stand ${g.toLocaleDateString('de-AT')} ${g.toLocaleTimeString('de-AT', {hour:'2-digit', minute:'2-digit'})}`;
+    const top = scroller.scrollTop; renderDays(); renderGrid(); scroller.scrollTop = top;
+  }catch(e){ /* keine echten Daten (z. B. lokal geöffnet) -> Demo bleibt */ }
+}
+
+/* Programm eines Senders für einen Sendetag: echte Daten, sonst Demo (deterministisch je Datum) */
 const cache = {};
 function schedule(chId, date){
   const key = chId + '|' + dateKey(date);
   if(cache[key]) return cache[key];
+  if(EPG) return cache[key] = realSchedule(chId, date);
   const ch = CHANNELS[chId], r = rng(hash(key)), year = date.getFullYear();
   const pools = { film:shuffled(FILMS,r), doku:shuffled(DOCS,r), serie:shuffled(SERIES,r), show:shuffled(SHOWS,r), kids:shuffled(KIDS,r), sport:shuffled(SPORT,r) };
   const idx = {film:0,doku:0,serie:0,show:0,kids:0,sport:0};
@@ -542,7 +589,12 @@ const yFor = m => (m - DAY_START) * PX_PER_MIN;
 /* ===================== Rendering ===================== */
 function renderDays(){
   const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'];
-  $('#days').innerHTML = Array.from({length:7}, (_, i) => {
+  let n = 7;
+  if(EPG){   // nur Tage anzeigen, für die es Programmdaten gibt
+    n = 0; while(n < 9 && order.some(id => schedule(id, broadcastDate(n)).length)) n++;
+    n = Math.max(1, n); if(dayOffset >= n) dayOffset = 0;
+  }
+  $('#days').innerHTML = Array.from({length:n}, (_, i) => {
     const d = broadcastDate(i);
     const label = i===0 ? 'Heute' : i===1 ? 'Morgen' : `${wd[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}.`;
     return `<button class="chip ${i===dayOffset?'on':''}" data-day="${i}">${label}</button>`;
@@ -573,12 +625,14 @@ function renderGrid(){
   // Spalten
   for(const id of order){
     let c = `<div class="col" style="height:${H}px">`;
-    for(const p of schedule(id, date)){
+    const progs = schedule(id, date);
+    if(!progs.length) c += `<div class="prog" style="top:${yFor(PRIME - 60)}px;height:120px;--cat:var(--line-hour);cursor:default"><div class="ti">Keine Programmdaten</div><div class="m">Für diesen Sender liefert die Quelle aktuell nichts.</div></div>`;
+    for(const p of progs){
       const h = (p.end - p.start) * PX_PER_MIN;
       const live = isToday && now >= p.start && now < p.end, past = isToday && now >= p.end;
       const dur = p.end - p.start;
       const size = h < 36 ? 'short tiny' : h < 64 ? 'short' : '';
-      const meta = `<span class="g">${esc(p.genre)}</span> · ${esc(p.country)} ${p.year}`;
+      const meta = `<span class="g">${esc(p.genre)}</span>` + ([p.country, p.year].filter(Boolean).length ? ' · ' + esc([p.country, p.year].filter(Boolean).join(' ')) : '') + (p.subtitle ? ' · ' + esc(p.subtitle) : '');
       c += `<div role="button" tabindex="0" class="prog ${size} ${live?'live':''} ${past?'past':''}" style="top:${yFor(p.start)+1}px;height:${h-2}px;--cat:${CATS[p.cat].color}"
               data-ch="${id}" data-start="${p.start}">
               <div class="t">${fmt(p.start)} – ${fmt(p.end)}${live?'<b>LIVE</b>':''}</div>
@@ -620,15 +674,17 @@ function openDetail(chId, start){
   $('#detailBody').innerHTML = `
     <button class="close" data-close aria-label="Schließen">×</button>
     <div class="sub"><span class="ch-badge" style="display:inline-block;background:${ch.color};margin-right:6px"></span>${esc(ch.name)} · ${dayTxt}</div>
-    <h2>${esc(p.title)}</h2>
+    <h2>${esc(p.title)}</h2>${p.subtitle ? `<div class="sub" style="font-size:15px;color:var(--text)">${esc(p.subtitle)}</div>` : ''}
     <div class="sub">${fmt(p.start)} – ${fmt(p.end)} Uhr · ${p.end - p.start} Min.${p.episode ? ' · ' + p.episode : ''}</div>
     <div class="tags" style="--cat:${CATS[p.cat].color}">
       <span class="tag cat">${esc(p.genre)}</span>
-      <span class="tag">📅 ${p.year}</span>
-      <span class="tag">🌍 ${esc(p.country)}</span>
+      ${p.year ? `<span class="tag">📅 ${p.year}</span>` : ''}
+      ${p.country ? `<span class="tag">🌍 ${esc(p.country)}</span>` : ''}
+      ${(p.cats || []).slice(1).map(c => `<span class="tag">${esc(c)}</span>`).join('')}
     </div>
     ${p.rating ? `<div>Kritik: ${starsHtml(p.rating)} <span class="sub">${String(p.rating).replace('.',',')}/5</span></div>` : ''}
     <p>${esc(p.desc)}</p>
+    ${p.director && p.director.length ? `<div class="sec"><h3>Regie</h3><div class="cast">${p.director.map(n => `<span>${esc(n)}</span>`).join('')}</div></div>` : ''}
     ${p.cast && p.cast.length ? `<div class="sec"><h3>Hauptdarsteller</h3><div class="cast">
       ${p.cast.map(([n, r]) => `<span>${esc(n)}${r ? ` <small>als ${esc(r)}</small>` : ''}</span>`).join('')}</div></div>` : ''}
     ${p.review ? `<div class="sec"><h3>Kritiken</h3><blockquote class="review">${esc(p.review)}
@@ -674,13 +730,13 @@ $('#jumps').addEventListener('click', e => {
   } else scrollToMin(toMin(b.dataset.jump), true);
 });
 grid.addEventListener('click', e => {
-  const b = e.target.closest('.prog'); if(b) openDetail(b.dataset.ch, +b.dataset.start);
+  const b = e.target.closest('.prog'); if(b && b.dataset.ch) openDetail(b.dataset.ch, +b.dataset.start);
 });
 document.querySelectorAll('.backdrop').forEach(bd => bd.addEventListener('click', e => {
   if(e.target === bd || e.target.closest('[data-close]')) bd.classList.remove('open');
 }));
 grid.addEventListener('keydown', e => {
-  const b = e.target.closest('.prog'); if(b && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openDetail(b.dataset.ch, +b.dataset.start); }
+  const b = e.target.closest('.prog'); if(b && b.dataset.ch && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openDetail(b.dataset.ch, +b.dataset.start); }
 });
 document.addEventListener('keydown', e => { if(e.key === 'Escape') document.querySelectorAll('.backdrop.open').forEach(b => b.classList.remove('open')); });
 $('#optQuetta').checked = useQuetta;
@@ -1064,6 +1120,7 @@ $('#btnTips').addEventListener('click', openTips);
 
 /* ===================== Start ===================== */
 renderDays(); renderJumps(); renderGrid();
+loadEpg();
 scrollToMin(PRIME);   // Standard: Ausschnitt ab 20:15
 </script>
 </body>
