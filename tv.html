@@ -495,16 +495,22 @@ const starsHtml = r => `<span class="stars" style="--r:${r}" role="img" aria-lab
 /* ===================== Echte Programmdaten (data/epg.json) ===================== */
 let EPG = null;   // wird vom GitHub-Workflow täglich aus XMLTV erzeugt (scripts/update_epg.py)
 function classify(cats, title, dur, ep){
-  const k = ((cats || []).join(' ') + ' ' + title).toLowerCase();
-  if(/spielfilm|fernsehfilm|kinofilm|tv-film|movie/.test(k)) return 'film';
-  if(/nachricht|news|\bzib\b|tagesschau|tagesthemen|heute journal|^heute|wetter|rundschau|journal/.test(k)) return 'news';
+  const c = (cats || []).join(' ').toLowerCase(), k = c + ' ' + title.toLowerCase();
+  if(/serie|sitcom|soap|telenovela/.test(c)) return /kids|kinder|animation|zeichentrick/.test(c) ? 'kids' : 'serie';
+  if(/spielfilm|fernsehfilm|kinofilm|tv-film|movie|\bfilm\b/.test(c)) return 'film';
+  if(/nachricht|news|information|\bzib\b|tagesschau|tagesthemen|heute journal|^heute\b|wetter|rundschau|journal/.test(k)) return 'news';
   if(/sport|fußball|fussball|ski alpin|biathlon|formel 1|tennis|eishockey/.test(k)) return 'sport';
-  if(/kinder|kids|zeichentrick|animation|trickfilm/.test(k)) return 'kids';
-  if(/doku|dokumentation|reportage|documentary|natur|reise/.test(k)) return 'doku';
-  if(/serie|series|soap|sitcom|telenovela/.test(k) || ep) return 'serie';
-  if(dur >= 70 && /film|thriller|krimi|komödie|drama|western|action|horror|abenteuer|science|romanze|liebe/.test(k)) return 'film';
+  if(/kinder|kids|zeichentrick|animation|trickfilm/.test(c)) return 'kids';
+  if(/doku|dokumentation|reportage|documentary|natur|reise/.test(c)) return 'doku';
+  if(ep) return 'serie';
+  if(dur >= 75 && /thriller|\bkrimi\b|\bcrime\b|komödie|comedy|drama|western|action|horror|abenteuer|adventure|science|romanze|liebesfilm/.test(c)) return 'film';
   return 'show';
 }
+const COUNTRY = {A:'Österreich',D:'Deutschland',USA:'USA',GB:'Großbritannien',F:'Frankreich',CDN:'Kanada',CH:'Schweiz',I:'Italien',
+  AUS:'Australien',J:'Japan',IRL:'Irland',E:'Spanien',NZ:'Neuseeland',B:'Belgien',NL:'Niederlande',DK:'Dänemark',S:'Schweden',N:'Norwegen',
+  FIN:'Finnland',PL:'Polen',CZ:'Tschechien',H:'Ungarn',EU:'Europa',IND:'Indien',RUS:'Russland',MEX:'Mexiko',ZA:'Südafrika',ROK:'Südkorea',
+  L:'Luxemburg',P:'Portugal',GR:'Griechenland',TR:'Türkei',IS:'Island',SLO:'Slowenien',HR:'Kroatien',ISR:'Israel',RA:'Argentinien',BR:'Brasilien'};
+const countryName = co => (co || '').split('/').map(c => COUNTRY[c] || c).join('/');
 function realSchedule(chId, date){
   const list = (EPG.channels || {})[chId];
   if(!list) return [];
@@ -518,24 +524,126 @@ function realSchedule(chId, date){
     const end = DAY_START + Math.min(DAY_LEN, Math.round((e - t0) / 60000));
     if(end - start < 1) continue;
     const cat = classify(x.c, x.t, (e - s) / 60000, x.ep);
-    out.push({ title: x.t, subtitle: x.st || '', desc: x.d || '', genre: (x.c && x.c[0]) || CATS[cat].label,
-      cats: x.c || [], year: x.y || '', country: x.co || '', rating: x.r || 0, cast: x.a || null, director: x.dir || null,
+    out.push({ title: x.t, subtitle: x.st || '', desc: x.d || '', genre: (x.c || []).find(g => !/^(sonstiges|gemischte themen|general|information)$/i.test(g)) || CATS[cat].label,
+      cats: x.c || [], year: x.y || '', country: countryName(x.co), img: x.img || '', rating: x.r || 0, cast: x.a || null, director: x.dir || null,
       episode: x.ep || '', cat, start, end, ch: chId, real: true });
   }
   return out;
 }
-async function loadEpg(){
-  try{
-    const r = await fetch('data/epg.json', { cache: 'no-cache' });
-    if(!r.ok) return;
-    const j = await r.json();
-    if(!j.channels || !Object.keys(j.channels).length) return;
-    EPG = j;
-    for(const k in cache) delete cache[k];
-    const g = new Date(j.generated);
-    $('#dataInfo').textContent = `Programmdaten: ${j.source || 'XMLTV'} · Stand ${g.toLocaleDateString('de-AT')} ${g.toLocaleTimeString('de-AT', {hour:'2-digit', minute:'2-digit'})}`;
-    const top = scroller.scrollTop; renderDays(); renderGrid(); scroller.scrollTop = top;
-  }catch(e){ /* keine echten Daten (z. B. lokal geöffnet) -> Demo bleibt */ }
+/* --- Live-Abruf direkt aus dem Internet ---
+   Quelle: epgshare01.online (XMLTV, Daten von tv-media.at). Die Quelle erlaubt keinen direkten
+   Browser-Abruf (kein CORS-Header) – deshalb wird zuerst direkt, dann über öffentliche CORS-Proxys geladen. */
+const EPG_URL = 'https://epgshare01.online/epgshare01/epg_ripper_AT1.xml.gz';
+const EPG_ROUTES = [
+  ['direkt', u => u],
+  ['codetabs', u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u)],
+  ['allorigins', u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)],
+  ['corsproxy.io', u => 'https://corsproxy.io/?url=' + encodeURIComponent(u)],
+];
+const EPG_CACHE_KEY = 'tv.epg.v2', EPG_MAX_AGE = 4 * 3600 * 1000;
+// Sender-ID -> mögliche Namen in der Quelle (normalisiert, beste Treffer zuerst)
+const EPG_NAMES = {
+  orf1:['orf1','orfeins'], orf2:['orf2','orf2w','orf2wien'], orf3:['orf3','orfiii','orf3kultur'],
+  servus:['servustv','servustvoesterreich','servustvaustria'], arte:['arte','artedeutsch'],
+  bayern:['br','brfernsehen','brfernsehensued','bayerischesfernsehen'], zdf:['zdf'],
+  ard:['daserste','dasersteard','ard'], dreisat:['3sat'], puls4:['puls4'], atv:['atv'], srf1:['srf1'], rtl:['rtl'], vox:['vox']
+};
+const EPG_DROP = new Set(['hd','uhd','sd','at','de','ch','tv','austria','germany','deutschland','oesterreich','hevc']);
+function epgNorm(n){
+  const t = n.toLowerCase().replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ä/g,'ae').split(/[^a-z0-9]+/).filter(Boolean);
+  return [t.join(''), t.filter(x => !EPG_DROP.has(x)).join('')];
+}
+const xmlDec = s => s.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, (m, e) =>
+  e === 'amp' ? '&' : e === 'lt' ? '<' : e === 'gt' ? '>' : e === 'quot' ? '"' : e === 'apos' ? "'" :
+  String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)));
+function xmltvTime(t){
+  const m = /^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)\s*([+-])(\d\d)(\d\d)/.exec(t || ''); if(!m) return 0;
+  const off = (m[7] === '-' ? -1 : 1) * (+m[8] * 60 + +m[9]);
+  return Math.round((Date.UTC(+m[1], m[2]-1, +m[3], +m[4], +m[5], +m[6]) - off * 60000) / 1000);
+}
+function parseXmltv(xml){
+  const chosen = {};
+  for(const m of xml.matchAll(/<channel id="([^"]*)">([\s\S]*?)<\/channel>/g)){
+    const names = [xmlDec(m[1]), ...[...m[2].matchAll(/<display-name[^>]*>([^<]*)</g)].map(x => xmlDec(x[1]))];
+    for(const [ours, wanted] of Object.entries(EPG_NAMES)) for(const n of names){
+      const [full, short] = epgNorm(n);
+      wanted.forEach((w, rank) => { if((w === full || w === short) && (!chosen[ours] || rank < chosen[ours][0])) chosen[ours] = [rank, m[1]]; });
+    }
+  }
+  const byId = {}; for(const [k, v] of Object.entries(chosen)) byId[v[1]] = k;
+  const now = Date.now() / 1000, tMin = now - 86400, tMax = now + 8 * 86400, out = {};
+  const all = (b, tag) => [...b.matchAll(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, 'g'))].map(x => xmlDec(x[1]).trim()).filter(Boolean);
+  for(const m of xml.matchAll(/<programme start="([^"]+)" stop="([^"]+)" channel="([^"]+)">([\s\S]*?)<\/programme>/g)){
+    const ours = byId[m[3]]; if(!ours) continue;
+    const s = xmltvTime(m[1]), e = xmltvTime(m[2]);
+    if(!s || !e || e < tMin || s > tMax) continue;
+    const b = m[4], p = { s, e, t: all(b, 'title')[0] || '' };
+    const st = all(b, 'sub-title')[0]; if(st) p.st = st;
+    let d = all(b, 'desc')[0]; if(d){ if(d.length > 420) d = d.slice(0, 420).replace(/\s+\S*$/, '') + ' …'; p.d = d; }
+    const c = [...new Set(all(b, 'category'))].slice(0, 4); if(c.length) p.c = c;
+    const co = all(b, 'country'); if(co.length) p.co = co.join('/');
+    const dir = all(b, 'director').slice(0, 2); if(dir.length) p.dir = dir;
+    const a = [...b.matchAll(/<actor(?:\s+role="([^"]*)")?[^>]*>([^<]*)<\/actor>/g)].slice(0, 6).map(x => [xmlDec(x[2]).trim(), xmlDec(x[1] || '')]); if(a.length) p.a = a;
+    const img = /<icon src="([^"]+)"/.exec(b); if(img) p.img = xmlDec(img[1]);
+    (out[ours] = out[ours] || []).push(p);
+  }
+  for(const k in out) out[k].sort((x, y) => x.s - y.s);
+  return { generated: new Date().toISOString(), source: 'epgshare01.online / tv-media.at', channels: out };
+}
+async function fetchLive(){
+  for(const [name, route] of EPG_ROUTES){
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 30000);
+    try{
+      const r = await fetch(route(EPG_URL), { signal: ctl.signal });
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let xml;
+      if(buf[0] === 0x1f && buf[1] === 0x8b){   // gzip im Browser entpacken
+        const ds = new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'));
+        xml = await new Response(ds).text();
+      } else xml = new TextDecoder().decode(buf);
+      if(!xml.includes('<programme')) throw new Error('keine XMLTV-Daten');
+      const j = parseXmltv(xml);
+      if(!Object.keys(j.channels).length) throw new Error('keine passenden Sender');
+      j.route = name;
+      return j;
+    }catch(e){ console.warn('EPG über', name, 'fehlgeschlagen:', e.message || e); }
+    finally{ clearTimeout(to); }
+  }
+  return null;
+}
+function useEpg(j, label){
+  EPG = j;
+  for(const k in cache) delete cache[k];
+  const g = new Date(j.generated);
+  $('#dataInfo').textContent = `Programmdaten: ${j.source || 'XMLTV'} · ${label} · Stand ${g.toLocaleDateString('de-AT')} ${g.toLocaleTimeString('de-AT', {hour:'2-digit', minute:'2-digit'})}`;
+  const top = scroller.scrollTop; renderDays(); renderGrid(); scroller.scrollTop = top;
+}
+async function loadEpg(force){
+  // 1. Zwischenspeicher im Browser (bis 4 Stunden alt) – sofort sichtbar
+  let cached = null;
+  try{ cached = JSON.parse(localStorage.getItem(EPG_CACHE_KEY) || 'null'); }catch(e){}
+  const fresh = cached && Date.now() - new Date(cached.generated).getTime() < EPG_MAX_AGE;
+  if(cached && cached.channels) useEpg(cached, 'gespeichert');
+  if(fresh && !force) return;
+  // 2. Datei neben der Seite (falls vorhanden, z. B. vom GitHub-Workflow)
+  if(!cached){
+    try{
+      const r = await fetch('data/epg.json', { cache: 'no-cache' });
+      if(r.ok){ const j = await r.json(); if(j.channels && Object.keys(j.channels).length) useEpg(j, 'Datei'); }
+    }catch(e){}
+  }
+  // 3. Live aus dem Internet
+  $('#dataInfo').textContent = (EPG ? $('#dataInfo').textContent + ' · ' : '') + 'lade aktuelle Programmdaten …';
+  const live = await fetchLive();
+  if(live){
+    useEpg(live, 'live' + (live.route !== 'direkt' ? ' über ' + live.route : ''));
+    try{ localStorage.setItem(EPG_CACHE_KEY, JSON.stringify(live)); }catch(e){ /* Speicher voll – egal */ }
+  } else if(EPG){
+    useEpg(EPG, 'Live-Abruf fehlgeschlagen, ältere Daten');
+  } else {
+    $('#dataInfo').textContent = 'Demo-Programmdaten (Live-Abruf fehlgeschlagen)';
+  }
 }
 
 /* Programm eines Senders für einen Sendetag: echte Daten, sonst Demo (deterministisch je Datum) */
@@ -673,6 +781,7 @@ function openDetail(chId, start){
   const dayTxt = d.toLocaleDateString('de-AT', {weekday:'long', day:'numeric', month:'long'});
   $('#detailBody').innerHTML = `
     <button class="close" data-close aria-label="Schließen">×</button>
+    ${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer" style="display:block;width:calc(100% + 36px);margin:-18px -18px 14px;aspect-ratio:16/9;object-fit:cover;border-radius:18px 18px 0 0;background:var(--bg)" onerror="this.remove()">` : ''}
     <div class="sub"><span class="ch-badge" style="display:inline-block;background:${ch.color};margin-right:6px"></span>${esc(ch.name)} · ${dayTxt}</div>
     <h2>${esc(p.title)}</h2>${p.subtitle ? `<div class="sub" style="font-size:15px;color:var(--text)">${esc(p.subtitle)}</div>` : ''}
     <div class="sub">${fmt(p.start)} – ${fmt(p.end)} Uhr · ${p.end - p.start} Min.${p.episode ? ' · ' + p.episode : ''}</div>
@@ -835,9 +944,13 @@ function openTips(){
   // Prüfen, ob um 20:15 ein gut bewerteter Film läuft
   const prime = order.map(id => schedule(id, d).find(p => p.start <= PRIME && p.end > PRIME)).filter(Boolean);
   const best = prime.filter(p => p.rating >= 4).sort((a, b) => b.rating - a.rating)[0];
+  const films = prime.filter(p => p.cat === 'film');
   const hint = best
     ? `📺 Um 20:15 läuft „${esc(best.title)}“ auf ${esc(CHANNELS[best.ch].name)} (${String(best.rating).replace('.',',')}/5 Sterne). Falls euch das nicht zusagt:`
-    : '📺 Um 20:15 läuft heute kein Film mit 4 oder mehr Sternen – Zeit für eine Alternative!';
+    : EPG && films.length
+      ? `📺 Um 20:15 laufen diese Filme: ${films.map(f => `„${esc(f.title)}“ (${esc(CHANNELS[f.ch].name)})`).join(', ')}. Falls nichts davon passt:`
+      : EPG ? '📺 Um 20:15 läuft heute auf deinen Sendern kein Spielfilm – Zeit für eine Alternative!'
+            : '📺 Um 20:15 läuft heute kein Film mit 4 oder mehr Sternen – Zeit für eine Alternative!';
   const dayTxt = d.toLocaleDateString('de-AT', {weekday:'long', day:'numeric', month:'long'});
   const tip = (ic, who, t) => `<div class="tip"><div class="ic">${ic}</div><div><h3>${who}</h3><b>${esc(t[0])}</b><p>${esc(t[1])}</p></div></div>`;
   $('#tipsBody').innerHTML = `

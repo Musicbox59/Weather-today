@@ -17,8 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 EPG_URLS = [
-    "https://epgshare01.online/epgshare01/epg_ripper_AT1.xml.gz",
-    "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz",
+    "https://epgshare01.online/epgshare01/epg_ripper_AT1.xml.gz",   # enthält alle Sender der Seite (Daten: tv-media.at)
 ]
 OUT = Path(__file__).resolve().parent.parent / "data" / "epg.json"
 DAYS_BACK, DAYS_AHEAD = 1, 8
@@ -33,7 +32,7 @@ CHANNELS = {
     "arte":    ["arte", "artedeutsch", "artegerman"],
     "bayern":  ["brfernsehen", "brfernsehensued", "brfernsehensud", "bayerischesfernsehen", "br", "brsued", "brnord"],
     "zdf":     ["zdf"],
-    "ard":     ["daserste", "ard", "ardaserste", "ardeins"],
+    "ard":     ["daserste", "dasersteard", "ard", "ardaserste"],
     "dreisat": ["3sat"],
     "puls4":   ["puls4"],
     "atv":     ["atv"],
@@ -136,9 +135,12 @@ def main(sources):
                         y = text_of(el, "date")[:4]
                         if y.isdigit():
                             p["y"] = int(y)
-                        co = text_of(el, "country")
+                        co = [c.text.strip() for c in el.findall("country") if c.text]
                         if co:
-                            p["co"] = co
+                            p["co"] = "/".join(dict.fromkeys(co))
+                        icon = el.find("icon")
+                        if icon is not None and icon.get("src"):
+                            p["img"] = icon.get("src")
                         cr = el.find("credits")
                         if cr is not None:
                             actors = [[a.text.strip(), a.get("role", "")] for a in cr.findall("actor") if a.text][:5]
@@ -189,7 +191,7 @@ def main(sources):
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "source": "epgshare01.online (XMLTV)",
+        "source": "epgshare01.online / tv-media.at",
         "sourceIds": found,
         "channels": {k: v for k, v in out.items() if v},
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
