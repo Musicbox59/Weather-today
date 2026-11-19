@@ -1366,7 +1366,6 @@ function viewToday() {
       <div><small>${tr('UV-Index max.', 'Max. UV index')}</small><b>${r0(D.uv_index_max[0])}</b></div>
     </div>
   </div>
-  <div class="card">${bioHTML()}</div>
   <div class="card"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
       <div class="hrow time">${idx.map((i, k) => cell(k === 0 ? tr('Jetzt', 'Now') : hourLbl(H.time[i]), i, k)).join('')}</div>
@@ -1376,6 +1375,7 @@ function viewToday() {
       <div class="hrow wind">${idx.map((i, k) => cell(arrow(H.wind_direction_10m[i]) + '<br><b>' + ws(H.wind_speed_10m[i]) + '</b><br>' + gustHTML(H.wind_gusts_10m[i]), i, k)).join('')}</div>
     </div></div>
   </div>
+  <div class="card">${bioHTML()}</div>
   <div class="card" id="allergyCard">${allergyHTML()}</div>
   <div class="card"><h2>👗 ${tr('Was ziehe ich heute an?', 'What to wear today?')} ${genderSwitch()}</h2>${outfitHTML(0)}</div>
   <p class="note">${tr('Stand: ', 'Updated: ') + withUhr(C.time.slice(11, 16)) + tr(' (Ortszeit) · Wind in ', ' (local time) · wind in ') + wUnit()}</p>`;
