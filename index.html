@@ -31,7 +31,9 @@
   .loc-row{display:flex;align-items:center;gap:8px;min-height:44px}
   .logo{flex:none;width:40px;height:40px;border-radius:10px;padding:0;line-height:0;box-shadow:0 1px 4px rgba(0,0,0,.25)}
   .logo img{width:40px;height:40px;border-radius:10px;display:block}
-  .loc-name{font-size:22px;font-weight:700;line-height:1.15;flex:1;min-width:0}
+  .loc-name{font-size:22px;font-weight:700;line-height:1.15;flex:0 1 auto;min-width:0}
+  .loc-sp{flex:1 1 0;min-width:0}
+  #favBtn{margin-left:-4px}
   .loc-name small{display:block;font-size:13px;font-weight:400;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .icon-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;flex:none}
   .icon-btn:hover{background:rgba(255,255,255,.15)}
@@ -248,6 +250,22 @@
   .pol-ic:hover,.pol-ic:focus-visible{background:#eef6e8;outline:none}
   .pol-ic .leaf{position:absolute;right:-3px;bottom:-2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px #fff;display:grid;place-items:center}
   .pol-ic .leaf svg{width:15px;height:15px}
+  /* Biowetter */
+  .bio{border-left:4px solid var(--bio)}
+  .bio-days{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 14px 10px;text-align:center}
+  .bio-days > div{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px}
+  .bio-days small{color:var(--muted);font-weight:600}
+  .bio-days i{width:100%;max-width:70px;height:6px;border-radius:3px}
+  .bio-it{margin:0 14px 10px;padding:8px 10px;border-left:4px solid;border-radius:6px;background:#f6f8fb}
+  .bio-h{display:flex;align-items:center;gap:8px}
+  .bio-ic{font-size:18px;line-height:1}
+  .bio-lv{margin-left:auto;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+  .bio-m{font-size:13px;margin:3px 0 2px}
+  .bio-w{font-size:13px;color:var(--muted)}
+  .bio-it small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+  .bio-ok{margin:0 14px 10px;color:#2e9b57;font-weight:600;font-size:14px}
+  .bio-src{margin:0 14px 12px;font-size:11px;color:var(--muted)}
+  .bio-line{flex-basis:100%;font-weight:600;font-size:13px}
   .allergy{display:flex;gap:12px;align-items:flex-start;padding:12px 14px}
   .allergy .ico{font-size:24px;line-height:1}
   .allergy b{display:block}
@@ -409,19 +427,20 @@
     <div class="loc-row">
       <button class="logo" id="logoBtn"><img id="logoImg" alt=""></button>
       <div class="loc-name" id="locName">Wetter<small id="locSub">…</small></div>
+      <button class="icon-btn" id="favBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
+      </button>
       <button class="icon-btn" id="climBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      </button>
+      <span class="loc-sp"></span>
+      <button class="icon-btn" id="setBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </button>
       <div class="lang" id="langSw" role="group" aria-label="Sprache / Language">
         <button data-lang="de" title="Deutsch"><svg viewBox="0 0 30 20"><rect width="30" height="20" fill="#ed2939"/><rect y="6.67" width="30" height="6.67" fill="#fff"/></svg><span class="hide-sm">DE</span></button>
         <button data-lang="en" title="English"><svg viewBox="0 0 60 40"><clipPath id="ukc"><rect width="60" height="40"/></clipPath><g clip-path="url(#ukc)"><rect width="60" height="40" fill="#012169"/><path d="M0,0 60,40M60,0 0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 60,40M60,0 0,40" stroke="#c8102e" stroke-width="3"/><path d="M30,0V40M0,20H60" stroke="#fff" stroke-width="12"/><path d="M30,0V40M0,20H60" stroke="#c8102e" stroke-width="7"/></g></svg><span class="hide-sm">EN</span></button>
       </div>
-      <button class="icon-btn" id="setBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-      </button>
-      <button class="icon-btn" id="favBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>
-      </button>
     </div>
     <div class="search-row">
       <div class="search">
@@ -689,7 +708,7 @@ async function loadLocation(loc) {
     state.data = await getJSON(API.forecast + '?' + qs({
       latitude: loc.lat, longitude: loc.lon, timezone: 'auto', forecast_days: 16,
       current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-      hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index',
+      hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index,pressure_msl,dew_point_2m,relative_humidity_2m',
       daily: 'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,snowfall_sum,precipitation_probability_max,sunrise,sunset,sunshine_duration,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max'
     }));
     state.loadedAt = Date.now();
@@ -1077,6 +1096,111 @@ function segsHTML(date) {
     <div class="r">${s.prob != null ? s.prob + ' %' : ''}${s.rain >= 0.1 ? ' · ' + mm(s.rain) : ''}</div>
     <div class="w">${arrow(s.dir)} ${ws(s.wind)}</div>${s.gust != null ? `<div class="w">${gustHTML(s.gust)}</div>` : ''}</div>` : '<div></div>').join('')}</div>`;
 }
+/* ---------- Biowetter: Hinweise für Wetterfühlige (aus der stündlichen Vorhersage abgeleitet) ---------- */
+const BIO_COL = ['#2e9b57', '#d9a300', '#e8742c', '#d0342c'];
+const bioLv = l => [tr('keine', 'none'), tr('gering', 'low'), tr('mäßig', 'moderate'), tr('stark', 'strong')][l];
+const dTmp = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.round(Math.abs(U.temp === 'f' ? v * 1.8 : v)) + (U.temp === 'f' ? ' °F' : ' °C');
+const dPrs = v => (v > 0 ? '+' : '−') + (U.pressure === 'inhg' ? dec(Math.abs(v) * 0.02953, 2) + ' inHg' : U.pressure === 'mmhg' ? Math.round(Math.abs(v) * 0.750062) + ' mmHg' : Math.round(Math.abs(v)) + ' hPa');
+const BIO = {
+  pdrop: { ic: '📉', n: ['Luftdruckabfall', 'Falling air pressure'], who: ['Kopfschmerz, Migräne, Gelenk- und Narbenschmerzen, Blutdruckschwankungen', 'Headache, migraine, joint and scar pain, blood pressure swings'],
+    tip: ['Viel trinken, Termine entzerren, gewohnte Schmerzmittel bei Bedarf griffbereit halten.', 'Drink plenty, ease your schedule, keep your usual pain relief at hand.'], val: f => dPrs(f.val) + tr(' in 12 Std.', ' in 12 h') },
+  prise: { ic: '📈', n: ['Rascher Luftdruckanstieg', 'Rapidly rising air pressure'], who: ['Kopfdruck, Schlafstörungen, Unruhe', 'Head pressure, poor sleep, restlessness'],
+    tip: ['Bessert sich meist schnell – Bewegung an der frischen Luft hilft.', 'Usually eases quickly – exercise in fresh air helps.'], val: f => dPrs(f.val) + tr(' in 12 Std.', ' in 12 h') },
+  tdrop: { ic: '🌡️', n: ['Temperatursturz', 'Sharp drop in temperature'], who: ['Herz, Kreislauf, Atemwege, Gelenke', 'Heart, circulation, airways, joints'],
+    tip: ['Warm anziehen; mit Herz-Kreislauf-Leiden starke Anstrengung meiden.', 'Dress warmly; with heart or circulation problems avoid heavy exertion.'], val: f => dTmp(f.val) + tr(' zum Vortag', ' vs. previous day') },
+  trise: { ic: '🌡️', n: ['Starker Temperaturanstieg', 'Sharp rise in temperature'], who: ['Kreislauf, niedriger Blutdruck, Müdigkeit', 'Circulation, low blood pressure, tiredness'],
+    tip: ['Langsam aufstehen, ausreichend trinken.', 'Get up slowly, drink enough.'], val: f => dTmp(f.val) + tr(' zum Vortag', ' vs. previous day') },
+  muggy: { ic: '💦', n: ['Schwüle', 'Muggy air'], who: ['Herz, Kreislauf, Schlaf', 'Heart, circulation, sleep'],
+    tip: ['Anstrengendes in die kühleren Morgenstunden legen, viel trinken.', 'Do strenuous things in the cooler morning, drink plenty.'], val: f => tr('Taupunkt ', 'dew point ') + tp(f.val) + '°' },
+  heat: { ic: '🔥', n: ['Hitzebelastung', 'Heat stress'], who: ['Herz, Kreislauf, ältere Menschen, Schlaf', 'Heart, circulation, older people, sleep'],
+    tip: ['Mittagshitze meiden, Räume kühl halten, viel trinken.', 'Avoid the midday heat, keep rooms cool, drink plenty.'], val: f => tr('gefühlt ', 'feels like ') + tp(f.val) + '°' },
+  cold: { ic: '❄️', n: ['Kältereiz', 'Cold stress'], who: ['Herz, Atemwege, Durchblutung', 'Heart, airways, circulation'],
+    tip: ['Gesicht und Hände schützen, durch die Nase atmen, Anstrengung im Freien meiden.', 'Protect face and hands, breathe through your nose, avoid outdoor exertion.'], val: f => tr('gefühlt ', 'feels like ') + tp(f.val) + '°' },
+  damp: { ic: '🌧️', n: ['Nasskaltes Wetter', 'Cold and damp'], who: ['Gelenke, Rheuma, Atemwege', 'Joints, rheumatism, airways'],
+    tip: ['Warm und trocken halten, Gelenke warm einpacken.', 'Keep warm and dry, keep your joints wrapped up.'], val: f => f.val + tr(' Std. feucht unter 8 °', ' h damp below 8 °').replace('8 °', tp(8) + '°') },
+  foehn: { ic: '🏔️', n: ['Föhn möglich', 'Föhn wind possible'], who: ['Kopfschmerz, Migräne, Unruhe, Schlaf, Konzentration', 'Headache, migraine, restlessness, sleep, concentration'],
+    tip: ['Ruhepausen einplanen, Alkohol und Koffein reduzieren.', 'Plan breaks, cut down on alcohol and caffeine.'], val: f => tr('Böen bis ', 'gusts up to ') + ws(f.val) },
+  spread: { ic: '↕️', n: ['Große Tag-Nacht-Schwankung', 'Large day–night swing'], who: ['Kreislauf, Erkältungsrisiko', 'Circulation, risk of catching a cold'],
+    tip: ['Zwiebellook – Schichten an- und ausziehen.', 'Dress in layers.'], val: f => dTmp(f.val).replace('+', '') }
+};
+function bioDays() {
+  if (state.bio && state.bio.for === state.data) return state.bio.days;
+  const H = state.data.hourly, D = state.data.daily, loc = state.loc || {};
+  const g = k => H[k] || [];
+  const p = g('pressure_msl'), T = g('temperature_2m'), AT = g('apparent_temperature'), TD = g('dew_point_2m'), RH = g('relative_humidity_2m'),
+    PR = g('precipitation'), WD = g('wind_direction_10m'), GU = g('wind_gusts_10m');
+  const h0 = hourIdx(), alps = loc.lat >= 45.7 && loc.lat <= 48.4 && loc.lon >= 5.5 && loc.lon <= 16.8;
+  const days = [];
+  for (let d = 0; d < Math.min(4, D.time.length); d++) {
+    const date = D.time[d], idx = [];
+    H.time.forEach((t, i) => { if (t.startsWith(date) && (d > 0 || i >= h0)) idx.push(i); });
+    const L = [], add = (k, lvl, at, val) => { if (lvl > 0) L.push({ k, lvl, at, val, d, date }); };
+    if (idx.length) {
+      let mn = 0, mi = -1, mx = 0, xi = -1;
+      idx.forEach(i => { if (i >= 12 && p[i] != null && p[i - 12] != null) { const c = p[i] - p[i - 12]; if (c < mn) { mn = c; mi = i; } if (c > mx) { mx = c; xi = i; } } });
+      add('pdrop', mn <= -9 ? 3 : mn <= -6 ? 2 : mn <= -4 ? 1 : 0, mi, mn);
+      add('prise', mx >= 9 ? 2 : mx >= 6 ? 1 : 0, xi, mx);
+      let td = -99, ti = -1, ha = -99, hi = -1, ca = 99, ci = -1, wet = 0, wi = -1, rain = 0;
+      idx.forEach(i => {
+        if (TD[i] != null && T[i] >= 20 && TD[i] > td) { td = TD[i]; ti = i; }
+        if (AT[i] != null && AT[i] > ha) { ha = AT[i]; hi = i; }
+        if (AT[i] != null && AT[i] < ca) { ca = AT[i]; ci = i; }
+        if (T[i] != null && T[i] > -3 && T[i] < 8 && RH[i] >= 90) { wet++; if (wi < 0) wi = i; }
+        rain += PR[i] || 0;
+      });
+      add('muggy', td >= 20 ? 3 : td >= 18 ? 2 : td >= 16 ? 1 : 0, ti, td);
+      add('heat', ha >= 38 ? 3 : ha >= 32 ? 2 : ha >= 29 ? 1 : 0, hi, ha);
+      add('cold', ca <= -20 ? 3 : ca <= -12 ? 2 : ca <= -5 ? 1 : 0, ci, ca);
+      add('damp', wet >= 8 ? (rain >= 5 ? 2 : 1) : 0, -1, wet);
+      if (alps) {       // Föhn-Verdacht: Südwind, trockene Luft, Böen, fallender Luftdruck (Alpenraum)
+        let fh = 0, fg = 0, fi = -1;
+        idx.forEach(i => { const w = WD[i]; if (w >= 135 && w <= 235 && RH[i] != null && RH[i] <= 50 && GU[i] >= 35 && i >= 6 && p[i] != null && p[i - 6] != null && p[i] - p[i - 6] <= -1) { fh++; fg = Math.max(fg, GU[i]); if (fi < 0) fi = i; } });
+        add('foehn', fh >= 3 ? (fg >= 60 ? 3 : 2) : fh >= 1 ? 1 : 0, fi, fg);
+      }
+    }
+    if (d > 0 && D.temperature_2m_max[d] != null && D.temperature_2m_max[d - 1] != null) {
+      const c = D.temperature_2m_max[d] - D.temperature_2m_max[d - 1], a = Math.abs(c);
+      add(c < 0 ? 'tdrop' : 'trise', a >= 12 ? 3 : a >= 9 ? 2 : a >= 6 ? 1 : 0, -1, c);
+    }
+    const sp = D.temperature_2m_max[d] - D.temperature_2m_min[d];
+    if (d > 0 || idx.length) add('spread', sp >= 15 ? 1 : 0, -1, sp);
+    L.sort((a, b) => b.lvl - a.lvl);
+    days.push({ date, d, list: L, max: L.length ? L[0].lvl : 0 });
+  }
+  state.bio = { for: state.data, days };
+  return days;
+}
+const bioPill = l => `<span class="bio-lv" style="background:${BIO_COL[l]}">${bioLv(l)}</span>`;
+function bioWhen(f) {
+  const day = dayName(f.date, f.d, true);
+  if (f.at == null || f.at < 0) return day;
+  return day + ', ' + tr('gegen ', 'around ') + hourLbl(state.data.hourly.time[f.at]);
+}
+function bioHTML() {
+  const days = bioDays();
+  const all = days.flatMap(x => x.list), best = {};
+  all.forEach(f => { if (!best[f.k] || f.lvl > best[f.k].lvl) best[f.k] = f; });
+  const items = Object.values(best).sort((a, b) => b.lvl - a.lvl || a.d - b.d).slice(0, 6);
+  const max = items.length ? items[0].lvl : 0;
+  const strip = days.map(x => `<div><small>${dayName(x.date, x.d)}</small><i style="background:${BIO_COL[x.max]}"></i><span>${bioLv(x.max)}</span></div>`).join('');
+  const body = items.length ? items.map(f => { const B = BIO[f.k], L2 = LANG === 'en' ? 1 : 0; return `<div class="bio-it" style="border-left-color:${BIO_COL[f.lvl]}">
+      <div class="bio-h"><span class="bio-ic">${B.ic}</span><b>${B.n[L2]}</b>${bioPill(f.lvl)}</div>
+      <div class="bio-m">${bioWhen(f)} · ${B.val(f)}</div>
+      <div class="bio-w">${tr('Kann belasten: ', 'May affect: ')}${B.who[L2]}</div>
+      <small>💡 ${B.tip[L2]}</small></div>`; }).join('')
+    : `<div class="bio-ok">✓ ${tr('In den nächsten Tagen sind keine besonderen Belastungen für Wetterfühlige zu erwarten.', 'No particular strain for weather-sensitive people expected in the next few days.')}</div>`;
+  return `<div class="bio ${max >= 2 ? 'warn' : ''}" style="--bio:${BIO_COL[max]}">
+    <h2>🩺 ${tr('Biowetter – Hinweis für Wetterfühlige', 'Bio-weather – note for weather-sensitive people')} <span>${tr('nächste 4 Tage', 'next 4 days')}</span></h2>
+    <div class="bio-days">${strip}</div>${body}
+    <p class="bio-src">${tr('Abgeleitet aus der Vorhersage von Luftdruck, Temperatur, Taupunkt, Feuchte und Wind. Kein medizinischer Rat.', 'Derived from the forecast of pressure, temperature, dew point, humidity and wind. Not medical advice.')}</p></div>`;
+}
+/* Kurzzeile für die Tageskarten (3 Tage) */
+function bioLine(i) {
+  const x = bioDays().find(y => y.d === i);
+  if (!x || !x.list.length) return '';
+  const L2 = LANG === 'en' ? 1 : 0;
+  return `<span class="bio-line" style="color:${BIO_COL[x.max]}">🩺 ${x.list.slice(0, 3).map(f => BIO[f.k].n[L2] + ` (${bioLv(f.lvl)})`).join(', ')}</span>`;
+}
 function dayCard(i, open) {
   const D = state.data.daily, date = D.time[i];
   return `<div class="card">
@@ -1089,6 +1213,7 @@ function dayCard(i, open) {
       <span>${tr('Sonne', 'Sun')} <b>${D.sunshine_duration[i] != null ? dec(D.sunshine_duration[i] / 3600) : '–'}&nbsp;h</b></span>
       <span>Wind <b>${dirTxt(D.wind_direction_10m_dominant[i])} ${ws(D.wind_speed_10m_max[i])}</b> · ${gustHTML(D.wind_gusts_10m_max[i])}</span>
       <span>☀︎ <b>${hhmm(D.sunrise[i])}</b> – <b>${hhmm(D.sunset[i])}</b></span>
+      ${i < 4 ? bioLine(i) : ''}
       ${D.uv_index_max[i] != null ? `<span>UV <b>${r0(D.uv_index_max[i])}</b></span>` : ''}
       <button class="ofbtn" data-outfit="${i}">👗 ${tr('Outfit-Tipp', 'What to wear')}</button>
     </div></div>`;
@@ -1241,6 +1366,7 @@ function viewToday() {
       <div><small>${tr('UV-Index max.', 'Max. UV index')}</small><b>${r0(D.uv_index_max[0])}</b></div>
     </div>
   </div>
+  <div class="card">${bioHTML()}</div>
   <div class="card"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
     <div class="hscroll"><div style="width:${idx.length * W}px">
       <div class="hrow time">${idx.map((i, k) => cell(k === 0 ? tr('Jetzt', 'Now') : hourLbl(H.time[i]), i, k)).join('')}</div>
