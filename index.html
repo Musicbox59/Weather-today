@@ -1960,6 +1960,10 @@ function viewSettings() {
     ${rows}
     <div class="preview">${tr('Beispiel', 'Example')}: <b>${tp(21)}°</b> · <b>${ws(14)}</b> · <b>${mm(1.2)}</b> · <b>${pres(1016)}</b> · <b>${fmtTime('13:45')}</b></div>
   </div>
+  <div class="card"><h2>🐦 ${tr('Amsel', 'Blackbird')}</h2>
+    <div class="set-row"><b>${tr('Singende Amsel', 'Singing blackbird')}<small>${tr('Fliegt über die Seite, setzt sich auf Balken, Knöpfe und Wolken und singt. Ton über den Lautsprecher-Knopf links unten.', 'Flies around the page, perches on bars, buttons and clouds and sings. Sound via the speaker button at the bottom left.')}</small></b>
+      <div class="opts" role="group" aria-label="${tr('Amsel', 'Blackbird')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-bird="${v}" class="${birdShown === v ? 'on' : ''}" aria-pressed="${birdShown === v}">${t}</button>`).join('')}</div></div>
+  </div>
   <div class="card"><h2>${tr('Schnellauswahl', 'Quick presets')}</h2>
     <div class="tools-row">
       <button class="btn2 ${isMetric ? 'on' : ''}" data-preset="metric">${tr('Metrisch (Standard)', 'Metric (default)')}</button>
@@ -1978,6 +1982,11 @@ function setLang(l) {
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.bird) {
+    birdShown = b.dataset.bird === 'true'; store.set('birdShow', birdShown);
+    if (birdCtl) birdCtl(birdShown);
+    render(); return;
+  }
   if (b.dataset.set) {
     if (b.dataset.set === 'lang') { setLang(b.dataset.val); return; }
     U[b.dataset.set] = b.dataset.val;
@@ -2683,6 +2692,8 @@ document.addEventListener('visibilitychange', () => {
 
 
 /* ---------- Amsel: fliegt über die Seite, setzt sich auf Balken, Knöpfe und Wolken und singt ---------- */
+/* Standardmäßig ausgeblendet – einblenden unter Einstellungen (wird gespeichert) */
+let birdShown = store.get('birdShow', false), birdCtl = null;
 (function () {
   const layer = document.getElementById('birdLayer'), bird = layer && layer.querySelector('.bird'), btn = $('#birdBtn');
   if (!bird || !btn) return;
@@ -2711,7 +2722,7 @@ document.addEventListener('visibilitychange', () => {
      Die Amsel versucht sofort zu singen; blockiert der Browser, singt sie bei der ersten Berührung der Seite. */
   const EVS = ['click', 'touchend', 'keydown', 'pointerup'];
   function unlock() {
-    if (unlocked) return;
+    if (unlocked || !birdShown) return;
     unlocked = true;
     EVS.forEach(ev => window.removeEventListener(ev, unlock, true));
     const a = ensureAudio();
@@ -2908,21 +2919,34 @@ document.addEventListener('visibilitychange', () => {
     ev.stopPropagation(); unlock();
     if (st.mode === 'sit' && !bird.classList.contains('singing')) sing();
   });
-  document.addEventListener('visibilitychange', () => setRunning(!document.hidden));
+  document.addEventListener('visibilitychange', () => setRunning(birdShown && !document.hidden));
 
-  if (reduced) {                    // ohne Bewegung: sitzt ruhig auf dem Ton-Knopf und singt
-    st.el = btn; st.frac = 0.5; st.mode = 'sit';
-    const p0 = perch(btn, 0.5); if (p0) place(p0.x, p0.y, 0);
-    bird.classList.add('sitting', 'ready');
-    land = () => {}; next = () => {};
+  function start() {
+    layer.style.display = ''; btn.style.display = '';
+    if (reduced) {                  // ohne Bewegung: sitzt ruhig auf dem Ton-Knopf und singt
+      st.el = btn; st.frac = 0.5; st.mode = 'sit';
+      const p0 = perch(btn, 0.5); if (p0) place(p0.x, p0.y, 0);
+      bird.classList.add('sitting', 'ready');
+      land = () => {}; next = () => {};
+      setRunning(!document.hidden);
+      later(sing, 1200);
+      return;
+    }
+    flight = null; st.mode = 'away'; st.el = null;
+    place(-120, 80, 0);
+    bird.classList.add('ready');
     setRunning(!document.hidden);
-    setTimeout(sing, 1500);
-    return;
+    later(() => { const el = pick(); flyTo(el, rnd(0.25, 0.75)); }, 600);
   }
-  place(-120, 80, 0);
-  bird.classList.add('ready');
-  setRunning(!document.hidden);
-  setTimeout(() => { const el = pick(); flyTo(el, rnd(0.25, 0.75)); }, 1500);
+  function stop() {
+    clearLater(); stopSound(true); setRunning(false);
+    flight = null; st.mode = 'away';
+    bird.classList.remove('sitting', 'singing', 'flying', 'peck', 'look', 'hopping', 'ready');
+    layer.querySelectorAll('.bird-note').forEach(n => n.remove());
+    layer.style.display = 'none'; btn.style.display = 'none';
+  }
+  birdCtl = on => { if (on) { unlock(); start(); } else stop(); };
+  if (birdShown) start(); else { layer.style.display = 'none'; btn.style.display = 'none'; }
 })();
 
 /* ---------- Start ---------- */
