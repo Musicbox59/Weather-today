@@ -296,6 +296,31 @@
   .wx-ex .wx-note{background:#fff7e6;border-left:4px solid #e8a33c;border-radius:6px;padding:8px 10px;margin:8px 0;font-size:14px;line-height:1.45}
   .wx-ex .wx-note.warn{background:#fdecea;border-left-color:#d0342c}
   .wx-ex .src{font-size:11px;color:var(--muted);margin:10px 0 2px}
+  /* Wolkenerkennung per Kamera */
+  .cam{margin:2px 0 6px;padding:12px;border-radius:12px;background:linear-gradient(180deg,#eaf3fd,#f6f9fc);border:1px solid #d6e5f5}
+  .cam > b{display:block;font-size:15px}
+  .cam > p{margin:4px 0 8px;font-size:13px;color:var(--muted);line-height:1.4}
+  .cam-btns{display:flex;gap:8px;flex-wrap:wrap}
+  .cam-btns label{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px;border-radius:20px;background:var(--blue);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+  .cam-btns label.alt{background:#fff;color:var(--blue);box-shadow:inset 0 0 0 2px var(--blue)}
+  .cam-btns input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .cl-res{margin-top:10px}
+  .cl-top{display:flex;gap:10px;align-items:flex-start}
+  .cl-top img{width:96px;height:96px;object-fit:cover;border-radius:10px;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+  .cl-top .t{flex:1;min-width:0}
+  .cl-top .t small{display:block;color:var(--muted);font-size:12px}
+  .cl-top .t b{display:block;font-size:17px;margin:1px 0}
+  .cl-conf{height:6px;border-radius:3px;background:#dde5ee;margin:4px 0 2px;overflow:hidden}
+  .cl-conf i{display:block;height:100%;border-radius:3px}
+  .cl-alt{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+  .cl-alt button{height:30px;padding:0 10px;border-radius:15px;background:#fff;border:1px solid #c9d6e4;font-size:12.5px;color:var(--text)}
+  .cl-alt button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+  .cl-card{margin-top:8px;background:#fff;border-radius:10px;padding:10px 12px;border:1px solid #dfe7f0}
+  .cl-card p{margin:4px 0;font-size:14px;line-height:1.45}
+  .cl-card .fc{font-weight:600}
+  .cl-card .cmp{font-size:13.5px;color:#3d4a5a;background:#f3f6f9;border-radius:8px;padding:7px 9px;margin-top:6px}
+  .cl-feat{font-size:11.5px;color:var(--muted);margin-top:6px}
+
   .sheet{position:fixed;inset:0;z-index:120;background:rgba(10,20,35,.45);display:none;align-items:flex-end;justify-content:center}
   .sheet.open{display:flex}
   .sheet .box{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:88vh;overflow-y:auto;padding:0 0 calc(14px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px rgba(0,0,0,.25)}
@@ -736,7 +761,7 @@ async function loadLocation(loc) {
     state.data = await getJSON(API.forecast + '?' + qs({
       latitude: loc.lat, longitude: loc.lon, timezone: 'auto', forecast_days: 16,
       current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-      hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index,pressure_msl,dew_point_2m,relative_humidity_2m',
+      hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index,pressure_msl,dew_point_2m,relative_humidity_2m,cloud_cover_low,cloud_cover_mid,cloud_cover_high,cape',
       daily: 'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,snowfall_sum,precipitation_probability_max,sunrise,sunset,sunshine_duration,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max'
     }));
     state.loadedAt = Date.now();
@@ -2892,6 +2917,7 @@ function wxExplainHTML() {
     : tr('In den nächsten 12 Stunden bleibt das Wetter voraussichtlich so.', 'The weather is expected to stay like this for the next 12 hours.'))
     + (nx.length ? ' ' + tr('Temperatur zwischen ', 'Temperature between ') + tp(Math.min(...nx)) + '° ' + tr('und ', 'and ') + tp(Math.max(...nx)) + '°.' : '');
   return `<div class="wx-ex">
+    ${cloudCamHTML()}
     <h3>${tr('Was ist das?', 'What is it?')}</h3><p>${ex[0]}</p>
     <h3>${tr('Wie entsteht das?', 'How does it form?')}</h3>${ex.slice(1).map(t => `<p>${t}</p>`).join('')}
     ${notes.map(([c, t]) => `<div class="wx-note ${c}">${t}</div>`).join('')}
@@ -2899,12 +2925,204 @@ function wxExplainHTML() {
     <h3>${tr('Wie geht es weiter?', 'What comes next?')}</h3><p>${outlook}</p>
     <p class="src">${tr('Messwerte und Vorhersage: Open-Meteo · Erklärtexte KI-generiert.', 'Values and forecast: Open-Meteo · explanations AI-generated.')}</p></div>`;
 }
+/* ---------- Wolkenerkennung per Kamera: Bildanalyse im Browser + Wolkendaten des Modells ---------- */
+const CLOUDS = {
+  clear: { n: ['Wolkenloser Himmel', 'Clear sky'], lat: '', h: ['', ''], sig: 'fair',
+    look: ['Kein Wölkchen am Himmel.', 'Not a cloud in the sky.'],
+    fc: ['Hochdruckwetter: Es bleibt vorerst trocken. In klaren Nächten kühlt es stark ab, im Herbst und Winter kann sich bis zum Morgen Nebel bilden.', 'High-pressure weather: it stays dry for now. Clear nights get cold; in autumn and winter fog may form by morning.'] },
+  ci: { n: ['Federwolken', 'Cirrus'], lat: 'Cirrus', h: ['5–13 km', '5–13 km'], sig: 'front',
+    look: ['Zarte, weiße Fasern, Strähnen oder Haken aus Eiskristallen.', 'Delicate white fibres, streaks or hooks made of ice crystals.'],
+    fc: ['Oft die ersten Vorboten einer Warmfront. Ziehen immer mehr auf und verdichten sie sich zu einem Schleier, kommt in etwa 12–24 Stunden Regen. Bleiben sie vereinzelt, bleibt es meist schön.', 'Often the first sign of a warm front. If more arrive and they thicken into a veil, rain is likely in about 12–24 hours. If they stay scattered, fine weather usually continues.'] },
+  cc: { n: ['Feine Schäfchenwolken', 'Cirrocumulus'], lat: 'Cirrocumulus', h: ['5–12 km', '5–12 km'], sig: 'front',
+    look: ['Sehr kleine, weiße Flöckchen in Reihen oder Feldern – wie Fischschuppen, ohne Schatten.', 'Very small white flakes in rows or patches – like fish scales, without shading.'],
+    fc: ['Zeigt Feuchtigkeit und Wind in großer Höhe. Oft wechselhaftes Wetter in den nächsten 12–24 Stunden, besonders wenn danach ein Schleier aufzieht.', 'Shows moisture and wind high up. Often changeable weather in the next 12–24 hours, especially if a veil follows.'] },
+  cs: { n: ['Schleierwolken', 'Cirrostratus'], lat: 'Cirrostratus', h: ['5–12 km', '5–12 km'], sig: 'front',
+    look: ['Dünner, milchiger Schleier über dem ganzen Himmel. Die Sonne scheint durch, oft mit einem Ring (Halo).', 'Thin, milky veil across the whole sky. The sun shines through, often with a ring (halo).'],
+    fc: ['Klassisches Zeichen einer nahenden Warmfront: Regen oder Schnee in etwa 12–24 Stunden ist wahrscheinlich. Alte Regel: „Hof um Sonne oder Mond – bald Regen.“', 'Classic sign of an approaching warm front: rain or snow in about 12–24 hours is likely. Old rule: “ring around the sun or moon – rain soon.”'] },
+  ac: { n: ['Grobe Schäfchenwolken', 'Altocumulus'], lat: 'Altocumulus', h: ['2–7 km', '2–7 km'], sig: 'change',
+    look: ['Weiße bis graue Ballen oder Walzen mit Schattenseiten, in Feldern oder Reihen.', 'White to grey rolls or patches with shaded sides, in fields or rows.'],
+    fc: ['Oft Zeichen für einen Wetterwechsel in 12–24 Stunden. An schwülen Sommermorgen mit türmchenartigen Formen sind am Nachmittag Gewitter möglich.', 'Often a sign of a change in 12–24 hours. On muggy summer mornings with turret-like shapes, afternoon thunderstorms are possible.'] },
+  as: { n: ['Mittelhohe Schichtwolken', 'Altostratus'], lat: 'Altostratus', h: ['2–7 km', '2–7 km'], sig: 'rain',
+    look: ['Gleichmäßige, graublaue Wolkenschicht. Die Sonne ist nur noch verwaschen zu sehen – wie durch Milchglas.', 'Even, blue-grey layer of cloud. The sun is only a blurred disc – like through frosted glass.'],
+    fc: ['Die Warmfront ist nah: Verdichtet sich die Schicht weiter, beginnt meist innerhalb weniger Stunden länger anhaltender Regen oder Schnee.', 'The warm front is close: if the layer keeps thickening, prolonged rain or snow usually starts within a few hours.'] },
+  ns: { n: ['Regenwolken', 'Nimbostratus'], lat: 'Nimbostratus', h: ['0,5–3 km', '0.5–3 km'], sig: 'rain',
+    look: ['Dunkelgraue, dicke Wolkenschicht ohne Struktur, oft mit Regen- oder Schneefall.', 'Dark grey, thick, featureless cloud layer, often with rain or snow falling.'],
+    fc: ['Anhaltender Niederschlag über mehrere Stunden. Besserung erst, wenn die Front durchgezogen ist – dann folgen oft Schauer und Aufheiterungen.', 'Steady precipitation for several hours. It only improves once the front has passed – then showers and bright spells often follow.'] },
+  sc: { n: ['Haufenschichtwolken', 'Stratocumulus'], lat: 'Stratocumulus', h: ['0,5–2 km', '0.5–2 km'], sig: 'grey',
+    look: ['Graue und weiße Ballen oder Walzen, dicht nebeneinander, oft mit kleinen Lücken.', 'Grey and white lumps or rolls close together, often with small gaps.'],
+    fc: ['Meist trocken, höchstens etwas Niesel. Das Wetter ändert sich in den nächsten Stunden kaum.', 'Mostly dry, at most a little drizzle. The weather will hardly change in the next few hours.'] },
+  st: { n: ['Hochnebel', 'Stratus'], lat: 'Stratus', h: ['0–0,5 km', '0–0.5 km'], sig: 'grey',
+    look: ['Tiefe, gleichförmig graue Schicht ohne Struktur – wie ein Nebel, der nicht am Boden liegt.', 'Low, uniform grey layer without structure – like fog that is not on the ground.'],
+    fc: ['Es bleibt grau, Niesel ist möglich. Im Winter hält sich Hochnebel bei Hochdruck oft tagelang; sonst lockert er am Nachmittag manchmal auf.', 'It stays grey, drizzle is possible. In winter under high pressure low stratus often lasts for days; otherwise it sometimes breaks up in the afternoon.'] },
+  cu: { n: ['Schönwetter-Quellwolken', 'Cumulus'], lat: 'Cumulus', h: ['0,5–2 km (Basis)', '0.5–2 km (base)'], sig: 'showers',
+    look: ['Weiße, scharf begrenzte Wolkenhaufen mit flacher, grauer Unterseite – wie Blumenkohl oder Wattebäusche.', 'White, sharply outlined heaps with a flat grey base – like cauliflower or cotton wool.'],
+    fc: ['Bleiben sie flach und breit, bleibt es schön (Schönwetterwolken). Wachsen sie bis Mittag stark in die Höhe, sind am Nachmittag Schauer oder Gewitter möglich.', 'If they stay flat and wide, fine weather continues. If they grow tall by midday, showers or thunderstorms are possible in the afternoon.'] },
+  cb: { n: ['Gewitterwolke', 'Cumulonimbus'], lat: 'Cumulonimbus', h: ['bis 12 km hoch', 'up to 12 km high'], sig: 'storm',
+    look: ['Riesiger, aufgetürmter Wolkenberg mit sehr dunkler Unterseite, oben oft ausgefranst wie ein Amboss.', 'Huge towering cloud with a very dark base, often spreading out like an anvil at the top.'],
+    fc: ['Gewitter mit Starkregen, Sturmböen und eventuell Hagel – oft schon innerhalb der nächsten Stunde. Schutz suchen!', 'Thunderstorm with heavy rain, squalls and possibly hail – often within the next hour. Take shelter!'] },
+  fog: { n: ['Nebel', 'Fog'], lat: '', h: ['am Boden', 'at ground level'], sig: 'fog',
+    look: ['Alles ist grau und verschwommen, die Sicht ist stark eingeschränkt.', 'Everything is grey and blurred, visibility is strongly reduced.'],
+    fc: ['Nebel löst sich auf, wenn die Sonne den Boden erwärmt oder Wind aufkommt. Bei winterlichem Hochdruck kann er sich den ganzen Tag halten.', 'Fog clears when the sun warms the ground or the wind picks up. Under winter high pressure it can last all day.'] }
+};
+const CL_ORDER = ['cu', 'cb', 'sc', 'st', 'ns', 'ac', 'as', 'ci', 'cc', 'cs', 'fog', 'clear'];
+let cloudState = null;
+const ramp = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a)));
+const band = (x, a, b, w) => Math.min(ramp(x, a - w, a), 1 - ramp(x, b, b + w));
+/* Bildmerkmale: Himmel/Wolke je Pixel, Helligkeit, Struktur, Ränder */
+function skyFeatures(img) {
+  const W = 200, H = Math.max(40, Math.round(img.height / img.width * W));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, W, H);
+  const d = cx.getImageData(0, 0, W, H).data, n = W * H;
+  const cls = new Uint8Array(n), lum = new Float32Array(n);   // 0 ignoriert, 1 Himmel, 2 Wolke
+  let sky = 0, cl = 0, veil = 0, sV = 0, sV2 = 0, dark = 0, bright = 0, tint = 0, gAll = 0, gAll2 = 0, nAll = 0;
+  for (let i = 0; i < n; i++) {
+    const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], v = Math.max(r, g, b), mn = Math.min(r, g, b), sat = v ? (v - mn) / v : 0;
+    const L = 0.299 * r + 0.587 * g + 0.114 * b; lum[i] = L;
+    gAll += L; gAll2 += L * L; nAll++;
+    if (v < 45 || (g > r + 12 && g > b + 4 && sat > 0.2)) continue;          // Boden, Bäume, Silhouetten
+    // blauer Himmel; blasses, helles Blau = dünner Schleier aus Eiswolken (Cirrus)
+    if (b > r + 18 && b >= g - 4 && sat > 0.16) { if (sat < 0.25 && v > 175) { cls[i] = 3; veil++; } else { cls[i] = 1; sky++; continue; } }
+    else { cls[i] = 2; }
+    cl++; sV += v; sV2 += v * v; tint += b - r;
+    if (v < 115) dark++; if (v > 205) bright++;
+  }
+  let trn = 0, edge = 0, tex = 0, texN = 0, up = 0, upN = 0, lo = 0, loN = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, c = cls[i]; if (!c) continue;
+    if (c >= 2) { if (y < H / 2) { up += lum[i]; upN++; } else { lo += lum[i]; loN++; } }
+    for (const j of [x + 1 < W ? i + 1 : -1, y + 1 < H ? i + W : -1]) {
+      if (j < 0 || !cls[j]) continue;
+      const dl = Math.abs(lum[i] - lum[j]);
+      if ((cls[j] === 1) !== (c === 1)) { trn++; edge += dl; } else if (c >= 2) { tex += dl; texN++; }
+    }
+  }
+  const tot = sky + cl || 1, mV = cl ? sV / cl : 0, gm = gAll / nAll;
+  return {
+    used: tot / n, cf: cl / tot, sky: sky / tot, thin: cl ? veil / cl : 0, mV, sdV: cl ? Math.sqrt(Math.max(0, sV2 / cl - mV * mV)) : 0,
+    dark: cl ? dark / cl : 0, bright: cl ? bright / cl : 0, tint: cl ? tint / cl : 0,
+    frag: trn / tot * 4, edge: trn ? edge / trn : 0, tex: texN ? tex / texN : 0,
+    base: upN && loN ? lo / loN - up / upN : 0, gStd: Math.sqrt(Math.max(0, gAll2 / nAll - gm * gm)), gMean: gm
+  };
+}
+function cloudScores(f) {
+  const C = state.data.current, H = state.data.hourly, i0 = hourIdx();
+  const get = k => (H[k] && H[k][i0] != null ? H[k][i0] : null);
+  const lo = get('cloud_cover_low'), mi = get('cloud_cover_mid'), hi = get('cloud_cover_high'), cape = get('cape') || 0, code = C.weather_code;
+  const cf = f.cf, thin = Math.max(1 - ramp(f.edge, 14, 30), ramp(f.thin, 0.35, 0.7));
+  const img = {
+    clear: 1 - ramp(cf, 0.01, 0.05),
+    fog: (1 - ramp(f.gStd, 18, 32)) * ramp(f.gMean, 110, 160) * (1 - ramp(f.sky, 0.02, 0.12)),
+    cu: band(cf, 0.08, 0.65, 0.15) * ramp(f.bright, 0.08, 0.3) * ramp(f.edge, 12, 30) * (1 - ramp(f.frag, 0.3, 0.6)) * (1 - ramp(f.thin, 0.3, 0.6)),
+    cb: ramp(cf, 0.35, 0.65) * ramp(f.sdV, 35, 55) * ramp(f.dark, 0.12, 0.3) * (0.7 + 0.3 * ramp(-f.base, 20, 60)),
+    ci: band(cf, 0.03, 0.55, 0.03) * thin * ramp(f.mV, 165, 200) * (1 - ramp(f.frag, 0.45, 0.8)),
+    cc: band(cf, 0.1, 0.7, 0.15) * ramp(f.frag, 0.45, 0.8) * ramp(f.mV, 165, 200) * thin,
+    cs: ramp(cf, 0.55, 0.85) * ramp(f.mV, 180, 212) * (1 - ramp(f.sdV, 12, 24)) * ramp(f.thin, 0.3, 0.6),
+    ac: band(cf, 0.25, 0.92, 0.12) * ramp(f.frag, 0.3, 0.6) * ramp(f.tex, 4, 9) * band(f.mV, 135, 245, 20) * (1 - ramp(f.thin, 0.4, 0.7)),
+    as: ramp(cf, 0.82, 0.96) * (1 - ramp(f.sdV, 12, 26)) * band(f.mV, 125, 195, 20) * (1 - ramp(f.tex, 4, 9)) * ramp(f.tint, 12, 22),
+    st: ramp(cf, 0.88, 0.98) * (1 - ramp(f.sdV, 9, 20)) * band(f.mV, 110, 205, 20) * (1 - ramp(f.tex, 3, 7)) * (1 - ramp(f.tint, 14, 24)) * (0.55 + 0.45 * ramp(f.gStd, 12, 25)),
+    ns: ramp(cf, 0.88, 0.98) * (1 - ramp(f.mV, 95, 128)) * (1 - ramp(f.sdV, 18, 32)),
+    sc: ramp(cf, 0.5, 0.82) * ramp(f.sdV, 16, 30) * (1 - ramp(f.frag, 0.45, 0.8)) * band(f.mV, 95, 205, 20) * (1 - ramp(f.sdV, 40, 60))
+  };
+  const P = v => v == null ? 0.35 : v / 100, rainy = code >= 51 && code < 95;
+  const prior = {
+    clear: C.cloud_cover != null ? 1 - C.cloud_cover / 100 : 0.3, fog: code === 45 || code === 48 ? 1 : 0.08,
+    cu: P(lo) * (0.5 + 0.5 * ramp(cape, 50, 600)) * (rainy ? 0.5 : 1), cb: code >= 95 ? 1 : ramp(cape, 400, 1500) * 0.8,
+    ci: P(hi), cc: P(hi) * 0.8, cs: P(hi) * (P(mi) < 0.5 ? 1 : 0.6),
+    ac: P(mi), as: P(mi) * (P(lo) < 0.6 ? 1 : 0.7), st: P(lo) * (code === 3 || (code >= 51 && code <= 57) ? 1 : 0.6),
+    ns: rainy ? Math.max(P(lo), P(mi)) : 0.1, sc: P(lo) * (rainy ? 0.6 : 1)
+  };
+  const out = CL_ORDER.map(k => ({ k, v: 0.72 * img[k] + 0.28 * prior[k] })).sort((a, b) => b.v - a.v);
+  const sum3 = out.slice(0, 3).reduce((a, x) => a + x.v, 0) || 1;
+  out.forEach(x => x.p = x.v / sum3);
+  return { list: out, model: { lo, mi, hi, cape } };
+}
+async function analyzeCloudPhoto(file) {
+  if (!file) return;
+  if (cloudState && cloudState.url) URL.revokeObjectURL(cloudState.url);
+  const url = URL.createObjectURL(file);
+  cloudState = { url, busy: true };
+  renderCloud();
+  try {
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+    const f = skyFeatures(img);
+    if (f.used < 0.15) { cloudState = { url, err: tr('Auf dem Foto ist zu wenig Himmel zu sehen. Bitte mehr Himmel und weniger Boden oder Gebäude fotografieren.', 'There is too little sky in the photo. Please capture more sky and less ground or buildings.') }; renderCloud(); return; }
+    const sc = cloudScores(f);
+    cloudState = { url, f, sc, sel: sc.list[0].k };
+  } catch (e) {
+    cloudState = { url, err: tr('Das Foto konnte nicht gelesen werden.', 'The photo could not be read.') };
+  }
+  renderCloud();
+}
+/* Was folgt daraus? Abgleich mit Luftdruck und Vorhersage */
+function cloudOutlook(k) {
+  const H = state.data.hourly, i0 = hourIdx(), sig = CLOUDS[k].sig;
+  let rainAt = -1, stormAt = -1;
+  for (let j = i0; j < Math.min(H.time.length, i0 + 24); j++) {
+    if (rainAt < 0 && ((H.precipitation[j] || 0) >= 0.2 || (H.precipitation_probability[j] || 0) >= 60)) rainAt = j;
+    if (stormAt < 0 && H.weather_code[j] >= 95) stormAt = j;
+  }
+  const P = H.pressure_msl || [], pt = P[i0] != null && P[i0 - 3] != null ? P[i0] - P[i0 - 3] : null;
+  const when = j => j === i0 ? tr('schon jetzt', 'right now') : tr('ab etwa ', 'from about ') + hourLbl(H.time[j]);
+  const t = [];
+  if (sig === 'storm') t.push(stormAt >= 0 ? tr('Passt zur Vorhersage: Gewitter ', 'Matches the forecast: thunderstorms ') + when(stormAt) + '.'
+    : tr('Die Vorhersage zeigt kein Gewitter – einzelne Gewitterzellen entstehen aber oft kleinräumig und werden vom Modell verfehlt. Lieber vorsichtig sein.', 'The forecast shows no thunderstorm – but single storm cells are often local and missed by the model. Better be careful.'));
+  else if (sig === 'front' || sig === 'rain' || sig === 'change') t.push(rainAt >= 0 ? tr('Passt zur Vorhersage: Niederschlag ', 'Matches the forecast: precipitation ') + when(rainAt) + '.'
+    : tr('Die Vorhersage zeigt in den nächsten 24 Stunden keinen Niederschlag – beobachte, ob sich die Wolken verdichten und tiefer werden.', 'The forecast shows no precipitation in the next 24 hours – watch whether the clouds thicken and lower.'));
+  else if (sig === 'showers') t.push(rainAt >= 0 ? tr('Die Vorhersage erwartet Schauer oder Regen ', 'The forecast expects showers or rain ') + when(rainAt) + tr(' – achte darauf, ob die Wolken in die Höhe wachsen.', ' – watch whether the clouds grow taller.')
+    : tr('Passt zur Vorhersage: vorerst trocken.', 'Matches the forecast: dry for now.'));
+  else t.push(rainAt >= 0 ? tr('Laut Vorhersage gibt es ', 'According to the forecast there will be precipitation ') + when(rainAt) + tr(' Niederschlag – das Wetter kann sich ändern.', ' – the weather may change.')
+    : tr('Passt zur Vorhersage: in den nächsten 24 Stunden kein nennenswerter Niederschlag.', 'Matches the forecast: no significant precipitation in the next 24 hours.'));
+  if (pt != null && pt <= -1.5) t.push(tr('Der Luftdruck fällt (', 'Pressure is falling (') + dec(pt, 1) + tr(' hPa in 3 Std.) – das stützt einen Wetterwechsel.', ' hPa in 3 h) – this supports a change in the weather.'));
+  else if (pt != null && pt >= 1.5) t.push(tr('Der Luftdruck steigt – das spricht eher für Besserung.', 'Pressure is rising – this points rather to improvement.'));
+  return t.join(' ');
+}
+function renderCloud() {
+  const box = $('#cloudRes'); if (!box) return;
+  const S = cloudState, L2 = LANG === 'en' ? 1 : 0;
+  if (!S) { box.innerHTML = ''; return; }
+  if (S.busy) { box.innerHTML = `<div class="cl-res"><small>${tr('Foto wird ausgewertet …', 'Analysing photo …')}</small></div>`; return; }
+  if (S.err) { box.innerHTML = `<div class="cl-res cl-card"><p>${S.err}</p></div>`; return; }
+  const top = S.sc.list[0], k = S.sel, Cl = CLOUDS[k], f = S.f, m = S.sc.model;
+  const conf = top.p >= 0.5 ? [tr('hoch', 'high'), '#2e9b57'] : top.p >= 0.4 ? [tr('mittel', 'medium'), '#d9a300'] : [tr('gering', 'low'), '#e8742c'];
+  const nm = x => CLOUDS[x].n[L2] + (CLOUDS[x].lat && CLOUDS[x].lat !== CLOUDS[x].n[L2] ? ` (${CLOUDS[x].lat})` : '');
+  box.innerHTML = `<div class="cl-res">
+    <div class="cl-top"><img src="${S.url}" alt="${tr('Dein Himmelsfoto', 'Your sky photo')}"><div class="t">
+      <small>${k === top.k ? tr('Erkannt', 'Detected') : tr('Von dir gewählt', 'Chosen by you')}</small><b>${nm(k)}</b>
+      ${k === top.k ? `<div class="cl-conf"><i style="width:${Math.round(top.p * 100)}%;background:${conf[1]}"></i></div><small>${tr('Sicherheit: ', 'Confidence: ')}${conf[0]} (${Math.round(top.p * 100)} %)</small>` : ''}
+    </div></div>
+    <div class="cl-alt" role="group" aria-label="${tr('Wolkenart wählen', 'Choose cloud type')}">${S.sc.list.slice(0, 3).concat(S.more ? S.sc.list.slice(3) : []).map(x => `<button data-cl="${x.k}" class="${x.k === k ? 'on' : ''}">${CLOUDS[x.k].n[L2]}</button>`).join('')}${S.more ? '' : `<button data-clmore="1">${tr('andere …', 'other …')}</button>`}</div>
+    <div class="cl-card">
+      ${Cl.h[L2] ? `<p><b>${tr('Höhe', 'Height')}:</b> ${Cl.h[L2]}</p>` : ''}
+      <p><b>${tr('Aussehen', 'Looks like')}:</b> ${Cl.look[L2]}</p>
+      <p class="fc">🔮 ${tr('Was daraus folgt: ', 'What it means: ')}</p><p>${Cl.fc[L2]}</p>
+      <div class="cmp">📊 ${cloudOutlook(k)}</div>
+    </div>
+    <div class="cl-feat">${tr('Im Bild', 'In the photo')}: ${tr('Wolken', 'clouds')} ${Math.round(f.cf * 100)} % · ${tr('Helligkeit', 'brightness')} ${Math.round(f.mV / 2.55)} % · ${tr('Struktur', 'texture')} ${f.frag > 0.6 ? tr('feinkörnig', 'fine-grained') : f.frag > 0.3 ? tr('gegliedert', 'structured') : tr('großflächig', 'large areas')}${m.lo != null ? ` · ${tr('Modell: tief', 'model: low')} ${r0(m.lo)} %, ${tr('mittel', 'mid')} ${r0(m.mi)} %, ${tr('hoch', 'high')} ${r0(m.hi)} %` : ''}</div>
+  </div>`;
+}
+document.addEventListener('change', e => { if (e.target && (e.target.id === 'cloudCam' || e.target.id === 'cloudPick')) { analyzeCloudPhoto(e.target.files && e.target.files[0]); e.target.value = ''; } });
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('#cloudRes button'); if (!b || !cloudState || !cloudState.sc) return;
+  if (b.dataset.cl) cloudState.sel = b.dataset.cl; else if (b.dataset.clmore) cloudState.more = true;
+  renderCloud();
+});
+function cloudCamHTML() {
+  return `<div class="cam"><b>📷 ${tr('Wolken per Kamera bestimmen', 'Identify clouds with your camera')}</b>
+    <p>${tr('Fotografiere den Himmel – die App schätzt die Wolkenart und leitet ab, welches Wetter kommt. Das Foto wird nur auf deinem Gerät ausgewertet.', 'Take a photo of the sky – the app estimates the cloud type and works out what weather is coming. The photo is only analysed on your device.')}</p>
+    <div class="cam-btns"><label>📷 ${tr('Kamera', 'Camera')}<input type="file" accept="image/*" capture="environment" id="cloudCam"></label>
+      <label class="alt">🖼️ ${tr('Foto wählen', 'Pick photo')}<input type="file" accept="image/*" id="cloudPick"></label></div>
+    <div id="cloudRes"></div>
+    <p class="src" style="margin-top:8px">${tr('Automatische Schätzung aus Farbe, Helligkeit und Struktur des Fotos, kombiniert mit den Wolkendaten des Wettermodells – sie kann irren. Tippe die passende Wolkenart an, wenn du es besser weißt.', 'Automatic estimate from colour, brightness and texture of the photo, combined with the weather model’s cloud data – it can be wrong. Tap the right cloud type if you know better.')}</p></div>`;
+}
+
 function showWx() {
   if (!state.data) return;
   const C = state.data.current;
   $('#wxBox').innerHTML = `<div class="hd"><div><b>${icon(C.weather_code, C.is_day, 26).replace('<svg', '<svg style="vertical-align:-6px;margin-right:6px"')}${desc(C.weather_code, C.is_day)}</b><small>${tr('Wetter erklärt', 'Weather explained')} · ${esc(state.loc ? state.loc.name : '')} · ${withUhr(C.time.slice(11, 16))}</small></div>
     <button class="icon-btn" id="wxClose" aria-label="${tr('Schließen', 'Close')}" style="color:var(--text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>${wxExplainHTML()}`;
   $('#wxSheet').setAttribute('aria-label', tr('Wetter erklärt', 'Weather explained'));
+  renderCloud();
   $('#wxSheet').classList.add('open');
   $('#wxClose').onclick = () => $('#wxSheet').classList.remove('open');
 }
