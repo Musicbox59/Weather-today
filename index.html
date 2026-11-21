@@ -278,6 +278,12 @@
   .now.on-dark > .wx-info{background:rgba(255,255,255,.22);color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
   .now.on-dark > .wx-info:hover{background:rgba(255,255,255,.35)}
   .now > .wx-info svg{width:22px;height:22px}
+  .now > .wx-speak{right:54px}
+  .now > .wx-speak .stop{display:none}
+  .now > .wx-speak.on .stop{display:inline}
+  .now > .wx-speak.on .talk{display:none}
+  .now > .wx-speak.on{background:#1d4f86;color:#fff;animation:speakPulse 1.4s ease-in-out infinite}
+  @keyframes speakPulse{0%,100%{box-shadow:0 0 0 0 rgba(29,79,134,.45)}50%{box-shadow:0 0 0 7px rgba(29,79,134,0)}}
   .wx-ex{padding:12px 16px 4px}
   .wx-ex h3{font-size:14px;margin:14px 0 4px;color:var(--blue)}
   .wx-ex h3:first-child{margin-top:2px}
@@ -720,6 +726,7 @@ const key = l => l.lat.toFixed(3) + ',' + l.lon.toFixed(3);
 /* ---------- Laden ---------- */
 async function loadLocation(loc) {
   if (state.view === 'favs' || state.view === 'settings') state.view = state.prevView || 'today';
+  if (speaking && window.speechSynthesis) { speechSynthesis.cancel(); speaking = false; }
   state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null; state.radarSrc = null; state.pollen = null;
   store.set('lastLoc', loc);
   destroyRadar();
@@ -1375,6 +1382,7 @@ function viewToday() {
         <div class="desc">${desc(C.weather_code, C.is_day)}</div>
         <div class="sub maxmin">${tr('Gefühlt', 'Feels like')} ${tp(C.apparent_temperature)}° · <b class="mx">${tp(D.temperature_2m_max[0])}°</b> / <b class="mn">${tp(D.temperature_2m_min[0])}°</b></div>
       </div>
+      ${'speechSynthesis' in window ? `<button class="wx-info wx-speak ${speaking ? 'on' : ''}" id="wxSpeakBtn" title="${speaking ? tr('Vorlesen stoppen', 'Stop reading') : tr('Wetter vorlesen', 'Read the weather aloud')}" aria-label="${speaking ? tr('Vorlesen stoppen', 'Stop reading') : tr('Wetter vorlesen: heute und die nächsten drei Tage', 'Read the weather aloud: today and the next three days')}" aria-pressed="${speaking}">${SPEAK_SVG}</button>` : ''}
       <button class="wx-info" id="wxInfoBtn" title="${tr('Wetter erklärt', 'Weather explained')}" aria-label="${tr('Das aktuelle Wetter erklärt', 'The current weather explained')}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10.5v6.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="7" r="1.5" fill="currentColor"/></svg></button>
     </div>
     <div class="details">
@@ -1996,6 +2004,7 @@ function viewSettings() {
 function setLang(l) {
   if (l === LANG) return;
   LANG = l; store.set('lang', LANG);
+  if (speaking && window.speechSynthesis) { speechSynthesis.cancel(); speaking = false; }
   sug.classList.remove('open');
   applyStatic(); renderHeader(); render();
   reopenPollen();
@@ -2672,6 +2681,83 @@ function closeSaying() { $('#sayingSheet').classList.remove('open'); sayOffset =
 $('#sayingBtn').onclick = () => { sayOffset = 0; showSaying(); };
 $('#sayingSheet').addEventListener('click', e => { if (e.target.id === 'sayingSheet') closeSaying(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSaying(); });
+
+/* ---------- Sprachausgabe: heutiges Wetter und die nächsten drei Tage kurz zusammengefasst ---------- */
+const SPEAK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><g class="talk" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5a6 6 0 0 1 6 6c0 1.6-.6 2.6-1.3 3.5l.8 3.5-3 .5v3H7v-3.8A6.5 6.5 0 0 1 3.5 10a6 6 0 0 1 6-6.5z"/><path d="M18.5 7.5a5 5 0 0 1 0 6M21 5a8.5 8.5 0 0 1 0 11"/></g><rect class="stop" x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>';
+let speaking = false;
+const spNum = v => { const n = Math.round(v); return (n < 0 ? tr('minus ', 'minus ') : '') + Math.abs(n); };
+const spT = v => spNum(cT(v)) + (U.temp === 'f' ? tr(' Grad Fahrenheit', ' degrees Fahrenheit') : tr(' Grad', ' degrees'));
+const spTr = (a, b) => spNum(cT(a)) + tr(' bis ', ' to ') + spT(b);
+const spW = v => wv(v) + ' ' + ({ kmh: tr('Kilometer pro Stunde', 'kilometres per hour'), ms: tr('Meter pro Sekunde', 'metres per second'), mph: tr('Meilen pro Stunde', 'miles per hour'), kn: tr('Knoten', 'knots'), bft: 'Beaufort' })[U.wind];
+const spMM = v => U.precip === 'in' ? dec(v / 25.4, 1) + tr(' Zoll', ' inches') : (v < 2 ? dec(v, 1) : Math.round(v)) + tr(' Millimeter', ' millimetres');
+const spCM = v => U.precip === 'in' ? dec(v / 2.54, 1) + tr(' Zoll', ' inches') : Math.round(v) + tr(' Zentimeter', ' centimetres');
+function speechText() {
+  const C = state.data.current, D = state.data.daily, h = +C.time.slice(11, 13);
+  const date = pd(D.time[0]);
+  const dateTxt = LANG === 'en' ? WDL_EN[date.getDay()] + ', ' + date.getDate() + ' ' + date.toLocaleString('en-GB', { month: 'long' })
+    : WDL_DE[date.getDay()] + ', ' + date.getDate() + '. ' + date.toLocaleString('de-DE', { month: 'long' });
+  const S = [];
+  S.push((h < 11 ? tr('Guten Morgen!', 'Good morning!') : h < 18 ? tr('Guten Tag!', 'Good afternoon!') : tr('Guten Abend!', 'Good evening!'))
+    + ' ' + tr('Das Wetter für ', 'The weather for ') + (state.loc ? state.loc.name : '') + ', ' + dateTxt + '.');
+  S.push(tr('Im Moment: ', 'Right now: ') + desc(C.weather_code, C.is_day) + tr(' bei ', ' at ') + spT(C.temperature_2m)
+    + (Math.abs((C.apparent_temperature ?? C.temperature_2m) - C.temperature_2m) >= 2 ? tr(', gefühlt ', ', feeling like ') + spT(C.apparent_temperature) : '') + '.');
+  let today = tr('Heute ', 'Today ') + spTr(D.temperature_2m_min[0], D.temperature_2m_max[0]);
+  const p0 = D.precipitation_probability_max[0];
+  if (p0 != null) today += p0 >= 30 ? tr(', Regenrisiko ', ', chance of rain ') + p0 + tr(' Prozent', ' percent') + (D.precipitation_sum[0] >= 1 ? tr(', etwa ', ', about ') + spMM(D.precipitation_sum[0]) : '') : tr(', meist trocken', ', mostly dry');
+  if (D.snowfall_sum && D.snowfall_sum[0] >= 1) today += tr(', Neuschnee etwa ', ', fresh snow about ') + spCM(D.snowfall_sum[0]);
+  today += tr(', Wind aus ', ', wind from the ') + dirLong(D.wind_direction_10m_dominant[0]) + tr(' mit bis zu ', ' up to ') + spW(D.wind_speed_10m_max[0]);
+  if (D.wind_gusts_10m_max[0] >= 50) today += tr(', in Böen bis ', ', gusts up to ') + spW(D.wind_gusts_10m_max[0]);
+  S.push(today + '.');
+  if (D.sunshine_duration[0] != null && D.sunshine_duration[0] >= 3600 * 6) S.push(tr('Die Sonne scheint rund ', 'About ') + Math.round(D.sunshine_duration[0] / 3600) + tr(' Stunden.', ' hours of sunshine.'));
+  // Wetterfühlige: nur deutliche Belastungen
+  if (typeof bioDays === 'function') {
+    const L2 = LANG === 'en' ? 1 : 0, strong = bioDays().flatMap(x => x.list).filter(f => f.lvl >= 2);
+    const seen = new Set(), names = strong.filter(f => !seen.has(f.k) && seen.add(f.k)).slice(0, 2).map(f => BIO[f.k].n[L2] + ' ' + dayName(f.date, f.d, true).replace(/^Heute$/, 'heute').replace(/^Morgen$/, 'morgen').replace(/^Today$/, 'today').replace(/^Tomorrow$/, 'tomorrow'));
+    if (names.length) S.push(tr('Hinweis für Wetterfühlige: ', 'Note for weather-sensitive people: ') + names.join(tr(' und ', ' and ')) + '.');
+  }
+  // die nächsten drei Tage
+  for (let i = 1; i <= 3 && i < D.time.length; i++) {
+    let t = dayName(D.time[i], i, true) + ': ' + desc(D.weather_code[i]) + ', ' + spTr(D.temperature_2m_min[i], D.temperature_2m_max[i]);
+    const p = D.precipitation_probability_max[i];
+    if (p != null && p >= 40) t += tr(', Regenrisiko ', ', chance of rain ') + p + tr(' Prozent', ' percent');
+    if (D.snowfall_sum && D.snowfall_sum[i] >= 1) t += tr(', Schnee', ', snow');
+    if (D.wind_gusts_10m_max[i] >= 60) t += tr(', stürmisch', ', stormy');
+    S.push(t + '.');
+  }
+  const last = Math.min(3, D.time.length - 1), dMax = D.temperature_2m_max[last] - D.temperature_2m_max[0];
+  if (Math.abs(dMax) >= 4) S.push(tr('Bis ', 'By ') + dayName(D.time[last], last, true) + (dMax > 0 ? tr(' wird es deutlich wärmer.', ' it gets noticeably warmer.') : tr(' wird es deutlich kälter.', ' it gets noticeably colder.')));
+  S.push(tr('Einen schönen Tag!', 'Have a nice day!'));
+  return S;
+}
+const DIRS_LONG = { de: ['Nord', 'Nordost', 'Ost', 'Südost', 'Süd', 'Südwest', 'West', 'Nordwest'], en: ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'] };
+const dirLong = deg => DIRS_LONG[LANG === 'en' ? 'en' : 'de'][Math.round((((deg || 0) % 360) + 360) % 360 / 45) % 8];
+function setSpeaking(on) {
+  speaking = on;
+  const b = $('#wxSpeakBtn'); if (!b) return;
+  b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+  b.title = on ? tr('Vorlesen stoppen', 'Stop reading') : tr('Wetter vorlesen', 'Read the weather aloud');
+}
+function speakWeather() {
+  const syn = window.speechSynthesis;
+  if (!syn || !state.data) return;
+  if (speaking || syn.speaking) { syn.cancel(); setSpeaking(false); return; }
+  const lang = LANG === 'en' ? 'en-GB' : 'de-DE';
+  const voices = syn.getVoices(), pref = voices.filter(v => v.lang && v.lang.replace('_', '-').toLowerCase().startsWith(LANG));
+  const voice = pref.find(v => v.lang.replace('_', '-') === lang && /google|natural|premium|enhanced/i.test(v.name)) || pref.find(v => v.lang.replace('_', '-') === lang) || pref[0] || null;
+  const parts = speechText();          // Satz für Satz – manche Browser brechen lange Texte sonst ab
+  syn.cancel();
+  setSpeaking(true);
+  parts.forEach((txt, k) => {
+    const u = new SpeechSynthesisUtterance(txt);
+    u.lang = lang; if (voice) u.voice = voice; u.rate = 1; u.pitch = 1;
+    if (k === parts.length - 1) u.onend = () => setSpeaking(false);
+    u.onerror = () => setSpeaking(false);
+    syn.speak(u);
+  });
+}
+if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); }
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#wxSpeakBtn')) { e.stopPropagation(); speakWeather(); } });
+window.addEventListener('pagehide', () => { if (window.speechSynthesis) speechSynthesis.cancel(); });
 
 /* ---------- „Wetter erklärt“: das aktuelle Wetter verständlich erklärt ---------- */
 const wxGroup = c => c <= 1 ? 'clear' : c <= 3 ? 'cloud' : c <= 48 ? 'fog' : c <= 57 ? 'drizzle' : c <= 67 || (c >= 80 && c <= 82) ? 'rain' : c <= 77 || c === 85 || c === 86 ? 'snow' : 'thunder';
