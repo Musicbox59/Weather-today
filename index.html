@@ -271,6 +271,25 @@
   .allergy b{display:block}
   .allergy small{color:var(--muted);font-size:13px}
   .lv{display:inline-block;border-radius:4px;padding:0 5px;font-size:12px;font-weight:700;color:#fff;margin:0 2px}
+  /* Info-Knopf „Wetter erklärt“ rechts unten in der Wetterkarte */
+  .now > .wx-info{position:absolute;right:10px;bottom:10px;z-index:2;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+    background:rgba(255,255,255,.6);color:#1d4f86;box-shadow:0 1px 4px rgba(0,0,0,.15);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);transition:transform .15s,background .15s}
+  .now > .wx-info:hover,.now > .wx-info:focus-visible{background:rgba(255,255,255,.9);transform:scale(1.08);outline:none}
+  .now.on-dark > .wx-info{background:rgba(255,255,255,.22);color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+  .now.on-dark > .wx-info:hover{background:rgba(255,255,255,.35)}
+  .now > .wx-info svg{width:22px;height:22px}
+  .wx-ex{padding:12px 16px 4px}
+  .wx-ex h3{font-size:14px;margin:14px 0 4px;color:var(--blue)}
+  .wx-ex h3:first-child{margin-top:2px}
+  .wx-ex p{margin:0 0 6px;font-size:15px;line-height:1.5}
+  .wx-ex .facts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0 6px}
+  .wx-ex .facts div{background:#f3f6f9;border-radius:8px;padding:6px 9px;font-size:13px}
+  .wx-ex .facts small{display:block;color:var(--muted);font-size:11.5px}
+  .wx-ex .facts b{font-size:15px}
+  .wx-ex .facts em{display:block;font-style:normal;font-size:11.5px;color:var(--muted);margin-top:1px}
+  .wx-ex .wx-note{background:#fff7e6;border-left:4px solid #e8a33c;border-radius:6px;padding:8px 10px;margin:8px 0;font-size:14px;line-height:1.45}
+  .wx-ex .wx-note.warn{background:#fdecea;border-left-color:#d0342c}
+  .wx-ex .src{font-size:11px;color:var(--muted);margin:10px 0 2px}
   .sheet{position:fixed;inset:0;z-index:120;background:rgba(10,20,35,.45);display:none;align-items:flex-end;justify-content:center}
   .sheet.open{display:flex}
   .sheet .box{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:88vh;overflow-y:auto;padding:0 0 calc(14px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px rgba(0,0,0,.25)}
@@ -521,6 +540,7 @@
 <div class="sheet" id="outfitSheet" role="dialog"><div class="box" id="outfitBox"></div></div>
 <div class="sheet" id="sayingSheet" role="dialog"><div class="box" id="sayingBox"></div></div>
 <div class="sheet" id="pollenSheet" role="dialog"><div class="box" id="pollenBox"></div></div>
+<div class="sheet" id="wxSheet" role="dialog"><div class="box" id="wxBox"></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
@@ -1355,6 +1375,7 @@ function viewToday() {
         <div class="desc">${desc(C.weather_code, C.is_day)}</div>
         <div class="sub maxmin">${tr('Gefühlt', 'Feels like')} ${tp(C.apparent_temperature)}° · <b class="mx">${tp(D.temperature_2m_max[0])}°</b> / <b class="mn">${tp(D.temperature_2m_min[0])}°</b></div>
       </div>
+      <button class="wx-info" id="wxInfoBtn" title="${tr('Wetter erklärt', 'Weather explained')}" aria-label="${tr('Das aktuelle Wetter erklärt', 'The current weather explained')}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10.5v6.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="7" r="1.5" fill="currentColor"/></svg></button>
     </div>
     <div class="details">
       <div><small>Wind</small><b>${arrow(C.wind_direction_10m)} ${dirTxt(C.wind_direction_10m)} ${ws(C.wind_speed_10m)}</b></div>
@@ -1980,6 +2001,7 @@ function setLang(l) {
   reopenPollen();
   if ($('#sayingSheet').classList.contains('open')) showSaying();
   if ($('#outfitSheet').classList.contains('open')) showOutfit(outfitDay);
+  if ($('#wxSheet').classList.contains('open')) showWx();
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
@@ -2650,6 +2672,159 @@ function closeSaying() { $('#sayingSheet').classList.remove('open'); sayOffset =
 $('#sayingBtn').onclick = () => { sayOffset = 0; showSaying(); };
 $('#sayingSheet').addEventListener('click', e => { if (e.target.id === 'sayingSheet') closeSaying(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSaying(); });
+
+/* ---------- „Wetter erklärt“: das aktuelle Wetter verständlich erklärt ---------- */
+const wxGroup = c => c <= 1 ? 'clear' : c <= 3 ? 'cloud' : c <= 48 ? 'fog' : c <= 57 ? 'drizzle' : c <= 67 || (c >= 80 && c <= 82) ? 'rain' : c <= 77 || c === 85 || c === 86 ? 'snow' : 'thunder';
+function wxKind(c, day) {
+  if (c === 0 || c === 1) return day ? 'clearDay' : 'clearNight';
+  if (c === 2) return 'partly';
+  if (c === 3) return 'overcast';
+  if (c === 45) return 'fog';
+  if (c === 48) return 'rimeFog';
+  if (c === 56 || c === 57 || c === 66 || c === 67) return 'freezing';
+  if (c >= 51 && c <= 55) return 'drizzle';
+  if (c >= 61 && c <= 65) return 'rain';
+  if (c >= 80 && c <= 82) return 'showers';
+  if (c === 85 || c === 86) return 'snowShowers';
+  if (c >= 71 && c <= 77) return 'snow';
+  if (c === 96 || c === 99) return 'hail';
+  return 'thunder';
+}
+const WX_EX = {
+  clearDay: [['Ein Hochdruckgebiet bestimmt das Wetter. In ihm sinkt die Luft großräumig ab, erwärmt sich dabei und wird trockener – Wolken können sich so kaum bilden oder lösen sich auf.',
+    'Die Sonne erwärmt zuerst den Boden, der Boden dann die Luft darüber. Darum ist es mittags und am frühen Nachmittag am wärmsten, obwohl die Sonne schon um die Mittagszeit am höchsten steht.'],
+    ['A high-pressure area is in control. Air sinks over a wide area, warms as it descends and dries out – so clouds can hardly form or they dissolve.',
+    'The sun first heats the ground, and the ground then heats the air above it. That is why it is warmest in the early afternoon, even though the sun is highest around midday.']],
+  clearNight: [['Klarer Himmel in der Nacht: Ohne Wolkendecke strahlt der Boden seine Wärme ungehindert in den Weltraum ab („Ausstrahlung“).',
+    'Darum kühlt es in klaren, windstillen Nächten besonders stark ab. Die kalte, schwere Luft sammelt sich in Mulden und Tälern – dort ist es oft deutlich kälter als auf Hügeln. Im Winterhalbjahr gibt es dann leicht Frost, Raureif oder bis zum Morgen Nebel.'],
+    ['Clear sky at night: without a cloud blanket the ground radiates its heat straight out into space.',
+    'That is why clear, calm nights get especially cold. The cold, heavy air collects in hollows and valleys – often much colder there than on hills. In the cold season this easily brings frost, hoar frost or fog by morning.']],
+  partly: [['Teils bewölkt: Meist sind das Quellwolken (Cumulus) – oder Wolkenfelder, die durchziehen.',
+    'Quellwolken entstehen so: Die Sonne heizt den Boden, warme Luftblasen steigen auf (Thermik). Beim Aufsteigen kühlen sie um etwa 1 °C pro 100 m ab. Erreichen sie ihren Taupunkt, kondensiert der Wasserdampf zu winzigen Tröpfchen – die flache Unterseite der Wolke markiert genau diese Höhe.'],
+    ['Partly cloudy: usually fair-weather cumulus clouds – or patches of cloud drifting through.',
+    'Cumulus forms like this: the sun heats the ground and bubbles of warm air rise (thermals). As they rise they cool by about 1 °C per 100 m. When they reach their dew point, the water vapour condenses into tiny droplets – the flat cloud base marks exactly that height.']],
+  overcast: [['Bedeckt: Eine geschlossene Schichtwolke (Stratus oder Altostratus) liegt über dem Land.',
+    'Sie entsteht, wenn eine ganze Luftschicht langsam gehoben wird – etwa vor einer Warmfront, wo milde Luft auf kältere aufgleitet – oder wenn sich feuchte Luft unter einer warmen Luftschicht staut und dort abkühlt.'],
+    ['Overcast: a continuous layer of cloud (stratus or altostratus) covers the sky.',
+    'It forms when a whole layer of air is lifted slowly – for example ahead of a warm front, where mild air glides up over colder air – or when moist air is trapped and cools below a warmer layer.']],
+  fog: [['Nebel ist eine Wolke, die am Boden aufliegt. Von Nebel spricht man, wenn man weniger als 1 km weit sieht.',
+    'Er entsteht, wenn die Luft bis zu ihrem Taupunkt abkühlt: Dann kann sie den Wasserdampf nicht mehr halten, er kondensiert zu winzigen Tröpfchen. Am häufigsten ist Strahlungsnebel – nach klaren, windstillen Nächten, wenn der Boden stark auskühlt. Strömt dagegen feuchte, milde Luft über kalten Boden, bildet sich Advektionsnebel.',
+    'Nebel löst sich auf, wenn die Sonne den Boden erwärmt oder Wind die Luft durchmischt. Im Spätherbst und Winter ist die Sonne dafür oft zu schwach – dann hält er sich manchmal den ganzen Tag.'],
+    ['Fog is a cloud resting on the ground. It counts as fog when visibility is below 1 km.',
+    'It forms when the air cools down to its dew point: it can no longer hold the water vapour, which condenses into tiny droplets. Most common is radiation fog – after clear, calm nights when the ground cools strongly. When moist, mild air flows over cold ground, advection fog forms instead.',
+    'Fog clears when the sun warms the ground or wind mixes the air. In late autumn and winter the sun is often too weak – then fog can last all day.']],
+  rimeFog: [['Gefrierender Nebel: Nebel bei Temperaturen unter 0 °C.',
+    'Die Nebeltröpfchen bleiben trotz Frost flüssig („unterkühlt“). Treffen sie auf Äste, Zäune oder Gräser, gefrieren sie sofort und bilden Raureif – die weißen Eisnadeln wachsen gegen den Wind.',
+    'Auch auf Straßen und Brücken kann sich so eine dünne Eisschicht bilden.'],
+    ['Freezing fog: fog at temperatures below 0 °C.',
+    'The fog droplets stay liquid despite the frost (“supercooled”). When they hit branches, fences or grass they freeze instantly and form rime – white ice needles that grow into the wind.',
+    'A thin layer of ice can also form on roads and bridges.']],
+  drizzle: [['Nieselregen fällt aus einer tiefen, grauen Schichtwolke.',
+    'Die Tröpfchen sind kleiner als 0,5 mm – zu klein, um zu großen Regentropfen zusammenzuwachsen. Typisch ist Niesel bei sehr feuchter Luft, unter Hochnebel oder an der Küste.'],
+    ['Drizzle falls from a low, grey layer of cloud.',
+    'The droplets are smaller than 0.5 mm – too small to merge into big raindrops. Drizzle is typical with very moist air, under low stratus or near the coast.']],
+  rain: [['Regen: In der Wolke wachsen Eiskristalle auf Kosten der Wassertröpfchen, bis sie schwer genug sind und fallen. Auf dem Weg nach unten schmelzen sie in wärmerer Luft zu Regentropfen.',
+    'Länger anhaltender Regen („Landregen“) kommt meist von einem Tiefdruckgebiet: An seiner Warmfront gleitet feuchte, milde Luft großräumig auf kältere Luft auf und wird dabei gehoben.'],
+    ['Rain: inside the cloud, ice crystals grow at the expense of the water droplets until they are heavy enough to fall. On the way down they melt into raindrops in warmer air.',
+    'Steady, longer-lasting rain usually comes with a low-pressure system: at its warm front, moist mild air glides up over colder air across a wide area and is lifted.']],
+  showers: [['Schauer kommen aus mächtigen Quellwolken (Cumulonimbus).',
+    'Sie entstehen bei „labiler“ Luft: Ist es in der Höhe sehr kalt und am Boden vergleichsweise warm, steigt die Luft kräftig auf. Schauer sind kurz und heftig, danach scheint oft die Sonne. Typisch ist das nach dem Durchzug einer Kaltfront („Rückseitenwetter“).'],
+    ['Showers come from towering cumulus clouds (cumulonimbus).',
+    'They form in “unstable” air: when it is very cold aloft and comparatively warm near the ground, air rises vigorously. Showers are short and heavy, often followed by sunshine. This is typical after a cold front has passed.']],
+  snow: [['Schnee: In der Wolke wachsen Eiskristalle und verhaken sich zu Schneeflocken.',
+    'Ist die Luft bis zum Boden kalt genug (nahe oder unter 0 °C), schmelzen sie unterwegs nicht. Bei 0 bis +1 °C fällt nasser, schwerer Schnee, der gut klebt; bei strengem Frost feiner, trockener Pulverschnee.'],
+    ['Snow: inside the cloud, ice crystals grow and hook together into snowflakes.',
+    'If the air is cold enough all the way down (near or below 0 °C), they do not melt on the way. At 0 to +1 °C wet, heavy, sticky snow falls; in hard frost fine, dry powder snow.']],
+  snowShowers: [['Schneeschauer kommen aus mächtigen Quellwolken in kalter, labiler Luft – oft nach einer Kaltfront.',
+    'Sie sind kurz, können aber heftig sein und die Sicht stark einschränken. Manchmal fällt dabei Graupel: Eiskristalle, an denen unterkühlte Tröpfchen festgefroren sind.'],
+    ['Snow showers come from towering cumulus clouds in cold, unstable air – often after a cold front.',
+    'They are short but can be heavy and cut visibility sharply. Sometimes graupel falls: ice crystals coated with frozen supercooled droplets.']],
+  freezing: [['Gefrierender Regen oder Niesel: Achtung, Glatteis!',
+    'Der Niederschlag entsteht in einer wärmeren Luftschicht in der Höhe und fällt als Wasser in eine dünne Frostschicht am Boden. Beim Aufprall auf den gefrorenen Boden, Autos oder Bäume gefriert er sofort zu einer glasklaren Eisschicht.'],
+    ['Freezing rain or drizzle: beware of black ice!',
+    'The precipitation forms in a warmer layer aloft and falls as water into a thin layer of frost near the ground. On impact with frozen ground, cars or trees it freezes instantly into a glass-clear sheet of ice.']],
+  thunder: [['Gewitter entstehen, wenn feuchtwarme, labile Luft in einer Cumulonimbus-Wolke bis in 10–12 km Höhe aufsteigt.',
+    'Durch starke Auf- und Abwinde reiben Eis- und Graupelteilchen aneinander und laden sich elektrisch auf – der Blitz gleicht diese Spannung aus. Er erhitzt die Luft blitzartig auf rund 30.000 °C, sie dehnt sich explosionsartig aus: Das hören wir als Donner.',
+    'Faustregel: Sekunden zwischen Blitz und Donner geteilt durch 3 ergibt die Entfernung in Kilometern.'],
+    ['Thunderstorms form when warm, moist, unstable air rises inside a cumulonimbus cloud up to 10–12 km.',
+    'Strong up- and downdrafts make ice and graupel particles collide and become electrically charged – lightning discharges that voltage. It heats the air to about 30,000 °C in an instant, so the air expands explosively: we hear that as thunder.',
+    'Rule of thumb: seconds between lightning and thunder divided by 3 gives the distance in kilometres.']],
+  hail: [['Gewitter mit Hagel: Gewitter entstehen, wenn feuchtwarme, labile Luft in einer Cumulonimbus-Wolke bis in 10–12 km Höhe aufsteigt.',
+    'Hagelkörner bilden sich, wenn kräftige Aufwinde Eiskörner immer wieder nach oben reißen. Bei jedem Umlauf frieren neue Wasserschichten an – darum sieht man in aufgeschnittenen Hagelkörnern Ringe wie bei einer Zwiebel. Erst wenn sie zu schwer für den Aufwind sind, fallen sie.'],
+    ['Thunderstorm with hail: thunderstorms form when warm, moist, unstable air rises inside a cumulonimbus cloud up to 10–12 km.',
+    'Hailstones grow when strong updrafts carry ice pellets up again and again. Each trip adds a new layer of frozen water – which is why cut hailstones show rings like an onion. They only fall once they are too heavy for the updraft.']]
+};
+const WX_TIP = {
+  fog: ['Mit Abblendlicht fahren, Abstand halten – bei Sicht unter 50 m höchstens 50 km/h.', 'Drive with dipped headlights and keep your distance – with visibility below 50 m, no faster than 50 km/h.'],
+  rimeFog: ['Vorsicht vor Glätte auf Brücken und schattigen Straßen.', 'Watch out for icy patches on bridges and shady roads.'],
+  freezing: ['Wenn möglich zu Hause bleiben, sonst sehr vorsichtig fahren und gehen.', 'Stay at home if possible, otherwise drive and walk very carefully.'],
+  thunder: ['Schutz in Gebäuden oder im Auto suchen, nicht unter einzelnen Bäumen stehen.', 'Take shelter in a building or car, don’t stand under single trees.'],
+  hail: ['Schutz in Gebäuden suchen, Auto möglichst unterstellen.', 'Take shelter indoors, park your car under cover if possible.']
+};
+function wxExplainHTML() {
+  const C = state.data.current, D = state.data.daily, H = state.data.hourly, i0 = hourIdx(), L2 = LANG === 'en' ? 1 : 0;
+  const code = C.weather_code, kind = wxKind(code, C.is_day), ex = WX_EX[kind][L2];
+  const T = C.temperature_2m, RH = C.relative_humidity_2m;
+  // Taupunkt: aus der Stundenvorhersage, sonst nach der Magnus-Formel
+  let Td = H.dew_point_2m && H.dew_point_2m[i0] != null ? H.dew_point_2m[i0] : null;
+  if (Td == null && T != null && RH) { const a = 17.62, b = 243.12, g = Math.log(RH / 100) + a * T / (b + T); Td = b * g / (a - g); }
+  const spread = T != null && Td != null ? Math.max(0, T - Td) : null;
+  const dT = v => Math.round(U.temp === 'f' ? v * 1.8 : v);
+  const P = H.pressure_msl || [], pNow = C.pressure_msl, p3 = P[i0 - 3] != null ? P[i0 - 3] : null, pt = pNow != null && p3 != null ? pNow - p3 : null;
+  const month = +C.time.slice(5, 7), wind = C.wind_speed_10m || 0;
+  const fact = (lbl, val, hint) => `<div><small>${lbl}</small><b>${val}</b>${hint ? `<em>${hint}</em>` : ''}</div>`;
+  const spreadHint = spread == null ? '' : spread <= 1 ? tr('Luft ist gesättigt – Nebel oder Niesel möglich', 'air is saturated – fog or drizzle possible')
+    : spread <= 3 ? tr('sehr feuchte Luft', 'very moist air') : spread >= 12 ? tr('trockene Luft', 'dry air') : '';
+  const presHint = pNow == null ? '' : (pNow >= 1020 ? tr('Hochdruckeinfluss', 'high pressure') : pNow <= 1005 ? tr('Tiefdruckeinfluss', 'low pressure') : '')
+    + (pt == null ? '' : (pNow >= 1020 || pNow <= 1005 ? ', ' : '') + (pt <= -1.5 ? tr('fällt (' , 'falling (') + dec(pt, 1) + tr(' in 3 Std.)', ' in 3 h)') : pt >= 1.5 ? tr('steigt (+', 'rising (+') + dec(pt, 1) + tr(' in 3 Std.)', ' in 3 h)') : tr('gleichbleibend', 'steady')));
+  const feel = C.apparent_temperature, fd = feel != null && T != null ? feel - T : 0;
+  const facts = [
+    fact(tr('Temperatur', 'Temperature'), tp(T) + '°', tr('gefühlt ', 'feels like ') + tp(feel) + '°' + (fd <= -2 && wind >= 10 && T <= 10 ? tr(' (Windkühle)', ' (wind chill)') : fd >= 2 ? tr(' (schwül)', ' (muggy)') : '')),
+    fact(tr('Taupunkt', 'Dew point'), Td != null ? tp(Td) + '°' : '–', spread != null ? tr('Abstand ', 'spread ') + dT(spread) + '° · ' + spreadHint : ''),
+    fact(tr('Luftfeuchte', 'Humidity'), r0(RH) + ' %', ''),
+    fact(tr('Luftdruck', 'Pressure'), pres(pNow), presHint),
+    fact(tr('Bewölkung', 'Cloud cover'), C.cloud_cover != null ? r0(C.cloud_cover) + ' %' : '–', ''),
+    fact('Wind', `${dirTxt(C.wind_direction_10m)} ${ws(wind)}`, tr('Böen ', 'gusts ') + ws(C.wind_gusts_10m))
+  ].join('');
+  // Besondere Lage
+  const notes = [];
+  const grp = wxGroup(code);
+  if ((grp === 'fog' || code === 3) && pNow >= 1018 && wind < 12 && (month >= 10 || month <= 2))
+    notes.push(['', tr('<b>Inversionswetterlage:</b> Über der kalten, feuchten Luft am Boden liegt wärmere Luft wie ein Deckel. Darunter staut sich Feuchtigkeit – es bleibt grau, neblig oder hochneblig, oft tagelang. Auf Bergen scheint dagegen häufig die Sonne über einem Nebelmeer, und dort ist es manchmal wärmer als im Tal.',
+      '<b>Temperature inversion:</b> warmer air lies like a lid on top of the cold, moist air near the ground. Moisture is trapped underneath – it stays grey and foggy or overcast, often for days. On mountains, by contrast, the sun often shines above a sea of fog, and it can be warmer up there than in the valley.')]);
+  if (T != null && T <= 1 && ['drizzle', 'rain', 'fog'].includes(grp) && kind !== 'freezing')
+    notes.push(['warn', tr('<b>Glättegefahr:</b> Bei Temperaturen um den Gefrierpunkt können Nässe und Nebel auf Straßen und Gehwegen gefrieren.', '<b>Risk of ice:</b> with temperatures around freezing, wet surfaces and fog can freeze on roads and pavements.')]);
+  if (typeof bioDays === 'function') { const f = (bioDays()[0] || { list: [] }).list.find(x => x.k === 'foehn'); if (f) notes.push(['', tr('<b>Föhn möglich:</b> Südwind fällt über die Alpen herab, erwärmt sich dabei und wird sehr trocken – typisch sind klare Fernsicht, Wärme und böiger Wind.', '<b>Föhn possible:</b> southerly wind descends from the Alps, warms up and becomes very dry – typical are clear long-distance views, warmth and gusty wind.')]); }
+  if (pt != null && pt <= -3) notes.push(['', tr('<b>Luftdruck fällt rasch:</b> Ein Tief oder eine Front nähert sich – das Wetter wird wahrscheinlich bald unbeständiger.', '<b>Pressure falling fast:</b> a low or a front is approaching – the weather will probably turn more unsettled soon.')]);
+  if (WX_TIP[kind]) notes.push(['warn', '💡 ' + WX_TIP[kind][L2]]);
+  // Ausblick nächste 12 Stunden
+  let change = null;
+  for (let k = 1; k <= 12 && i0 + k < H.time.length; k++) { const c = H.weather_code[i0 + k]; if (wxGroup(c) !== grp) { change = i0 + k; break; } }
+  const nx = H.temperature_2m.slice(i0, i0 + 13).filter(v => v != null);
+  const outlook = (change != null
+    ? tr('Ab etwa ', 'From about ') + hourLbl(H.time[change]) + ': <b>' + desc(H.weather_code[change], H.is_day[change]) + '</b>.'
+    : tr('In den nächsten 12 Stunden bleibt das Wetter voraussichtlich so.', 'The weather is expected to stay like this for the next 12 hours.'))
+    + (nx.length ? ' ' + tr('Temperatur zwischen ', 'Temperature between ') + tp(Math.min(...nx)) + '° ' + tr('und ', 'and ') + tp(Math.max(...nx)) + '°.' : '');
+  return `<div class="wx-ex">
+    <h3>${tr('Was ist das?', 'What is it?')}</h3><p>${ex[0]}</p>
+    <h3>${tr('Wie entsteht das?', 'How does it form?')}</h3>${ex.slice(1).map(t => `<p>${t}</p>`).join('')}
+    ${notes.map(([c, t]) => `<div class="wx-note ${c}">${t}</div>`).join('')}
+    <h3>${tr('Jetzt bei dir', 'Right now where you are')}</h3><div class="facts">${facts}</div>
+    <h3>${tr('Wie geht es weiter?', 'What comes next?')}</h3><p>${outlook}</p>
+    <p class="src">${tr('Messwerte und Vorhersage: Open-Meteo · Erklärtexte KI-generiert.', 'Values and forecast: Open-Meteo · explanations AI-generated.')}</p></div>`;
+}
+function showWx() {
+  if (!state.data) return;
+  const C = state.data.current;
+  $('#wxBox').innerHTML = `<div class="hd"><div><b>${icon(C.weather_code, C.is_day, 26).replace('<svg', '<svg style="vertical-align:-6px;margin-right:6px"')}${desc(C.weather_code, C.is_day)}</b><small>${tr('Wetter erklärt', 'Weather explained')} · ${esc(state.loc ? state.loc.name : '')} · ${withUhr(C.time.slice(11, 16))}</small></div>
+    <button class="icon-btn" id="wxClose" aria-label="${tr('Schließen', 'Close')}" style="color:var(--text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>${wxExplainHTML()}`;
+  $('#wxSheet').setAttribute('aria-label', tr('Wetter erklärt', 'Weather explained'));
+  $('#wxSheet').classList.add('open');
+  $('#wxClose').onclick = () => $('#wxSheet').classList.remove('open');
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#wxInfoBtn')) { e.stopPropagation(); showWx(); } });
+$('#wxSheet').addEventListener('click', e => { if (e.target.id === 'wxSheet') $('#wxSheet').classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#wxSheet').classList.remove('open'); });
 
 function render() {
   setTabs();
