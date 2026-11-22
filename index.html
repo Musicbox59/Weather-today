@@ -377,6 +377,10 @@
   .r-time.fc small{color:#b06b00}
   .r-me{position:absolute;right:10px;bottom:14px;z-index:500;width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);display:grid;place-items:center;color:var(--blue)}
   .r-me svg{width:22px;height:22px}
+  svg.chart .sleigh{pointer-events:none;transition:opacity .2s}
+  svg.chart .sleigh .lb{display:none}
+  svg.chart .sleigh.ph .la{display:none}
+  svg.chart .sleigh.ph .lb{display:inline}
   /* Windpfeile auf der Radarkarte */
   .r-wind{position:absolute;right:10px;bottom:64px;z-index:500;width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);display:grid;place-items:center;color:var(--muted)}
   .r-wind.on{background:var(--blue);color:#fff}
@@ -1288,9 +1292,9 @@ function chart(series, n, colW, h) {
   const lo = Math.min(...all), hi = Math.max(...all), span = Math.max(hi - lo, 1), top = 24, bot = 22;
   const y = v => top + (h - top - bot) * (1 - (v - lo) / span);
   let out = '';
-  series.forEach(s => {
+  series.forEach((s, si) => {
     const pts = s.v.map((v, i) => v == null ? null : [i * colW + colW / 2, y(v)]).filter(Boolean);
-    out += `<polyline fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"/>`;
+    out += `<polyline ${si === 0 && sleighOn ? 'class="sl-trk" ' : ''}fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"/>`;
     s.v.forEach((v, i) => {
       if (v == null) return;
       const cx = i * colW + colW / 2, cy = y(v);
@@ -1298,8 +1302,39 @@ function chart(series, n, colW, h) {
       if (s.labels !== false) out += `<text x="${cx}" y="${(s.below ? cy + 19 : cy - 9).toFixed(1)}" text-anchor="middle" fill="${s.color}">${Math.round(v)}°</text>`;
     });
   });
-  return `<svg class="chart" width="${n * colW}" height="${h}" style="display:block">${out}</svg>`;
+  if (sleighOn && n > 1) out += `<g class="sleigh" aria-hidden="true" style="opacity:0"><g transform="translate(0 -7) scale(-.92 .92)">${SLEIGH_SVG}</g></g>`;
+  return `<svg class="chart" width="${n * colW}" height="${h}" style="display:block;overflow:visible">${out}</svg>`;
 }
+/* ---------- Rentierschlitten: fährt entlang der Temperaturkurven (Zeichnung aus der Radio-Seite) ---------- */
+let sleighOn = store.get('sleighOn', true);
+const SLEIGH_SVG = '<path d="M-14 -2 L-6 0" stroke="#d4a52a" stroke-width="1.2"/><g class="la" stroke="#6b4320" stroke-width="1.6" stroke-linecap="round"><path d="M-26 2 L-30 8 M-24 2 L-22 8 M-17 2 L-20 8 M-15 2 L-11 8"/></g><g class="lb" stroke="#6b4320" stroke-width="1.6" stroke-linecap="round"><path d="M-26 2 L-26 8 M-24 2 L-27 8 M-17 2 L-15 8 M-15 2 L-14 8"/></g><ellipse cx="-20.5" cy="-1" rx="8.5" ry="4.3" fill="#8b5a2b"/><path d="M-27 -3 L-24 -1 L-28 -9 L-31.5 -8 Z" fill="#8b5a2b"/><ellipse cx="-31.5" cy="-8" rx="4.4" ry="2.6" fill="#8b5a2b"/><circle cx="-35.6" cy="-7.6" r="1.1" fill="#2b1a0e"/><circle cx="-31" cy="-9" r=".7" fill="#1a1a1a"/><path d="M-29.5 -10 L-28 -15 M-28.6 -12.8 L-26.2 -13.6 M-31.5 -10.3 L-33 -15.5 M-32.3 -13.2 L-34.8 -13.6" stroke="#5a3a1e" stroke-width="1" stroke-linecap="round" fill="none"/><path d="M-12 -3 L-10 -5 L-11 -1 Z" fill="#f3ead8"/><path d="M-9 7 Q-12 4 -7.5 4 M-9 7 L33 7 Q36.5 7 36 3.5" stroke="#d4a52a" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M0 3 L0 7 M26 3 L26 7" stroke="#d4a52a" stroke-width="1.2"/><path d="M-5 3 Q-9 -4 -3.5 -5 L4 -5 L6 -1.5 L29 -1.5 L31.5 -10 L35 -10 L34 3 Z" fill="#c62a20" stroke="#7d130d" stroke-width=".7"/><path d="M-3.5 -5 L4 -5 L6 -1.5 L29 -1.5" stroke="#d4a52a" stroke-width="1" fill="none"/><path d="M26 -2 Q25 -11 30 -12 Q34 -11 33 -2 Z" fill="#3f7a3a"/><path d="M28.5 -12 L31.5 -12" stroke="#d4a52a" stroke-width="1"/><ellipse cx="18" cy="-6" rx="6.2" ry="5.2" fill="#d22a20"/><path d="M12 -5.5 L24 -5.5" stroke="#222" stroke-width="1.2"/><rect x="17" y="-6.4" width="2" height="1.8" fill="#d4a52a"/><path d="M13.5 -8 L7 -4" stroke="#d22a20" stroke-width="2.4" stroke-linecap="round"/><circle cx="6.7" cy="-3.8" r="1.2" fill="#222"/><circle cx="16" cy="-13.5" r="3.3" fill="#f2c9a0"/><path d="M12.6 -13 Q12 -8.5 15.5 -7.8 Q19.3 -8.2 19.2 -12.4 Q16 -11 12.6 -13 Z" fill="#fff"/><path d="M12.4 -15.4 L19.6 -15.4 L22.8 -21 Z" fill="#d22a20"/><rect x="12" y="-16.6" width="8" height="2" rx="1" fill="#fff"/><circle cx="23" cy="-21" r="1.4" fill="#fff"/><circle cx="14.6" cy="-13.6" r=".55" fill="#222"/>';
+const sleighPos = new WeakMap();
+let sleighRaf = 0, sleighLast = 0;
+function sleighFrame(now) {
+  sleighRaf = 0;
+  const gs = document.querySelectorAll('svg.chart .sleigh');
+  if (!gs.length || !sleighOn) return;
+  const dt = sleighLast ? Math.min(now - sleighLast, 100) : 16; sleighLast = now;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  gs.forEach(g => {
+    const trk = g.parentNode.querySelector('.sl-trk'); if (!trk) return;
+    const r = g.parentNode.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) return;                     // nicht sichtbar → nicht rechnen
+    const L = trk.getTotalLength(); if (!L) return;
+    let x = sleighPos.has(g) ? sleighPos.get(g) : (still ? L * 0.3 : 0);
+    if (!still) { x += dt * 0.045; if (x > L + 40) x = -40; }          // ca. 45 px pro Sekunde, dann von vorn
+    sleighPos.set(g, x);
+    const c = Math.max(0, Math.min(L, x)), p = trk.getPointAtLength(c), q = trk.getPointAtLength(Math.min(L, c + 2)), p0 = trk.getPointAtLength(Math.max(0, c - 2));
+    const a = Math.atan2(q.y - p0.y, q.x - p0.x) * 180 / Math.PI;
+    g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${a.toFixed(1)})`);
+    g.style.opacity = Math.max(0, Math.min(1, Math.min(x + 30, L + 30 - x) / 30)).toFixed(2);
+    g.classList.toggle('ph', !still && Math.floor(now / 140) % 2 === 1);
+  });
+  if (!still) sleighRaf = requestAnimationFrame(sleighFrame);
+}
+function startSleighs() { if (!sleighRaf && sleighOn) { sleighLast = 0; sleighRaf = requestAnimationFrame(sleighFrame); } }
+document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(sleighRaf); sleighRaf = 0; } else startSleighs(); });
+window.addEventListener('scroll', () => { if (matchMedia('(prefers-reduced-motion: reduce)').matches) startSleighs(); }, { passive: true });
 
 /* ---------- Himmel im Hintergrund der aktuellen Wetterkarte ----------
    Tageszeit aus Sonnenauf-/untergang (Dämmerung ±45 Min.), Wetter aus dem Wettercode, Sturm ab Böen von 60 km/h,
@@ -2090,9 +2125,11 @@ function viewSettings() {
     ${rows}
     <div class="preview">${tr('Beispiel', 'Example')}: <b>${tp(21)}°</b> · <b>${ws(14)}</b> · <b>${mm(1.2)}</b> · <b>${pres(1016)}</b> · <b>${fmtTime('13:45')}</b></div>
   </div>
-  <div class="card"><h2>🐦 ${tr('Amsel', 'Blackbird')}</h2>
+  <div class="card"><h2>✨ ${tr('Figuren', 'Characters')}</h2>
     <div class="set-row"><b>${tr('Singende Amsel', 'Singing blackbird')}<small>${tr('Fliegt über die Seite, setzt sich auf Balken, Knöpfe und Wolken und singt. Ton über den Lautsprecher-Knopf links unten.', 'Flies around the page, perches on bars, buttons and clouds and sings. Sound via the speaker button at the bottom left.')}</small></b>
       <div class="opts" role="group" aria-label="${tr('Amsel', 'Blackbird')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-bird="${v}" class="${birdShown === v ? 'on' : ''}" aria-pressed="${birdShown === v}">${t}</button>`).join('')}</div></div>
+    <div class="set-row"><b>🦌 ${tr('Rentierschlitten', 'Reindeer sleigh')}<small>${tr('Fährt mit dem Weihnachtsmann entlang der Temperaturkurven.', 'Rides with Santa along the temperature curves.')}</small></b>
+      <div class="opts" role="group" aria-label="${tr('Rentierschlitten', 'Reindeer sleigh')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-sleigh="${v}" class="${sleighOn === v ? 'on' : ''}" aria-pressed="${sleighOn === v}">${t}</button>`).join('')}</div></div>
   </div>
   <div class="card"><h2>${tr('Schnellauswahl', 'Quick presets')}</h2>
     <div class="tools-row">
@@ -2114,6 +2151,7 @@ function setLang(l) {
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.sleigh) { sleighOn = b.dataset.sleigh === 'true'; store.set('sleighOn', sleighOn); render(); return; }
   if (b.dataset.bird) {
     birdShown = b.dataset.bird === 'true'; store.set('birdShow', birdShown);
     if (birdCtl) birdCtl(birdShown);
@@ -3206,6 +3244,7 @@ $('#wxSheet').addEventListener('click', e => { if (e.target.id === 'wxSheet') $(
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#wxSheet').classList.remove('open'); });
 
 function render() {
+  setTimeout(startSleighs, 0);
   setTabs();
   $('#setBtn').classList.toggle('on', state.view === 'settings');
   $('#climBtn').classList.toggle('on', state.view === 'climate');
