@@ -8,6 +8,7 @@ Einfache Wetter-App als **eine einzige HTML-Datei** (`index.html`) – ohne Anme
 - **Standort** per GPS des Smartphones, per **Ortssuche** (Name oder PLZ) oder per **Punkt auf der Karte**
 - **Ortssuche** nach Name oder Postleitzahl – auch österreichische PLZ (4-stellig), Ortsteile und Weiler; Treffer aus Österreich, Deutschland und der Schweiz zuerst
 - **Favoriten auf der Karte**: In der Karte und im Radar sind alle Favoriten mit ★ und Namen markiert – Antippen öffnet das heutige Wetter dieses Ortes
+- **Windpfeile im Radar**: kleine Pfeile zeigen auf der Karte, wohin der Wind gerade weht, mit Geschwindigkeit (in der eingestellten Einheit) und Farbe nach Stärke. Raster passt sich dem Kartenausschnitt an (ca. ein Pfeil je 70 px), Punkte werden zwischengespeichert; Ein/Aus über den Wind-Knopf auf der Karte (wird gespeichert). Daten: Open-Meteo, aktuelle Werte.
 - **Favoriten** mit dem ☆-Stern speichern; eigene Seite „☰ Favoriten“: jeder Ort als Balken mit aktuellem Wetter-Symbol, Temperatur, Höchst-/Tiefstwert, Wind, Regen/Schnee und Sonnenstunden; sortieren, umbenennen, löschen
 - **Favoriten sichern**: als Datei (JSON) herunterladen und wiederherstellen oder als Sicherungs-Link (Lesezeichen) aufbewahren
 - Ansichten: **Heute** (aktuell, stündlich mit Wind samt Einheit und Böen), **3 Tage**, **7 Tage**, **21 Tage**, **Radar**

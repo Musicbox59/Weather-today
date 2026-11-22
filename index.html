@@ -377,6 +377,18 @@
   .r-time.fc small{color:#b06b00}
   .r-me{position:absolute;right:10px;bottom:14px;z-index:500;width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);display:grid;place-items:center;color:var(--blue)}
   .r-me svg{width:22px;height:22px}
+  /* Windpfeile auf der Radarkarte */
+  .r-wind{position:absolute;right:10px;bottom:64px;z-index:500;width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);display:grid;place-items:center;color:var(--muted)}
+  .r-wind.on{background:var(--blue);color:#fff}
+  .r-wind svg{width:22px;height:22px}
+  .w-arr{position:relative;width:0;height:0;pointer-events:none}
+  .w-arr svg{position:absolute;left:-13px;top:-13px;width:26px;height:26px;filter:drop-shadow(0 0 1.5px rgba(255,255,255,.95)) drop-shadow(0 0 1px rgba(255,255,255,.95))}
+  .w-arr b{position:absolute;left:-14px;top:11px;width:28px;text-align:center;font-size:10px;font-weight:700;color:#1d2733;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff}
+  .r-wleg{display:none;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:0 14px 12px;font-size:12px;color:var(--muted)}
+  .r-wleg.on{display:flex}
+  .r-wleg span{display:inline-flex;align-items:center;gap:4px}
+  .r-wleg i{display:inline-block;width:14px;height:4px;border-radius:2px}
+
   .r-ctrl{display:flex;align-items:center;gap:12px;padding:10px 14px 4px}
   .r-play{width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;flex:none}
   .r-play svg{width:20px;height:20px}
@@ -1527,6 +1539,7 @@ function viewRadar() {
     <div style="position:relative">
       <div id="radarMap"></div>
       <div class="r-time" id="rTime">${tr('Radar wird geladen …', 'Loading radar …')}</div>
+      <button class="r-wind ${radarWindOn ? 'on' : ''}" id="rWind" aria-pressed="${radarWindOn}" title="${tr('Windpfeile ein/aus', 'Wind arrows on/off')}" aria-label="${tr('Windpfeile ein/aus', 'Wind arrows on/off')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/></svg></button>
       <button class="r-me" id="rMe" title="${tr('Zur aktuellen Position', 'Back to location')}" aria-label="${tr('Zur aktuellen Position', 'Back to location')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>
     </div>
     <div class="r-ctrl">
@@ -1534,6 +1547,7 @@ function viewRadar() {
       <div class="r-track"><input type="range" id="rSlider" min="0" max="0" value="0" aria-label="${tr('Zeitpunkt', 'Time')}"><div class="r-ticks" id="rTicks"></div></div>
     </div>
     <div class="r-legend" id="rLegend"></div>
+    <div class="r-wleg" id="rWindLeg"></div>
   </div>
   <p class="note" id="rNote"></p>`;
 }
@@ -1547,6 +1561,61 @@ function radarTexts() {
     : tr('Quelle: RainViewer (weltweit, gröbere Auflösung beim Hineinzoomen). ', 'Source: RainViewer (worldwide, coarser when zoomed in). '))
     + tr('Roter Punkt = gewählter Standort. Links von „Jetzt“: gemessene Radarbilder; „Prognose“: Hochrechnung der Niederschlagsbewegung (sofern angeboten).', 'Red dot = selected location. Left of “Now”: measured radar images; “Forecast”: projected movement of the precipitation (if available).');
 }
+/* ---------- Windpfeile auf der Radarkarte (aktueller Wind von Open-Meteo, Raster passend zum Kartenausschnitt) ---------- */
+let radarWindOn = store.get('radarWind', true);
+const WIND_COL = [[10, '#7c93b0'], [25, '#2a78d6'], [40, '#1baf7a'], [60, '#e3a008'], [80, '#e8742c'], [1e9, '#d0342c']];
+const windCol = v => WIND_COL.find(([lim]) => (v || 0) < lim)[1];
+const windCache = new Map();          // "lat,lon" → { t, s, d }
+function windStep(span, n) {          // „glatte“ Rasterweite, damit beim Verschieben vorhandene Punkte wiederverwendet werden
+  const raw = span / n, nice = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20];
+  return nice.find(x => x >= raw) || 20;
+}
+function windGrid(map) {               // etwa ein Pfeil je 70 Pixel
+  const b = map.getBounds(), sz = map.getSize();
+  const stepLat = windStep(b.getNorth() - b.getSouth(), Math.max(3, Math.round(sz.y / 70)));
+  const stepLon = windStep(b.getEast() - b.getWest(), Math.max(3, Math.round(sz.x / 70)));
+  const pts = [];
+  for (let la = Math.ceil(b.getSouth() / stepLat) * stepLat; la <= b.getNorth(); la += stepLat)
+    for (let lo = Math.ceil(b.getWest() / stepLon) * stepLon; lo <= b.getEast(); lo += stepLon)
+      if (la > -85 && la < 85) pts.push([+la.toFixed(3), +(((lo + 540) % 360) - 180).toFixed(3)]);
+  return pts.slice(0, 100);
+}
+function windArrowIcon(w) {
+  const len = 0.75 + Math.min(1, (w.s || 0) / 60) * 0.5, c = windCol(w.s);
+  return L.divIcon({ className: '', iconSize: [0, 0], iconAnchor: [0, 0],
+    html: `<div class="w-arr"><svg viewBox="0 0 26 26" style="transform:rotate(${((w.d || 0) + 180) % 360}deg) scale(${len.toFixed(2)})"><path d="M13 2.5l6 12h-4.2V23h-3.6v-8.5H7z" fill="${c}" stroke="#fff" stroke-width=".8" stroke-linejoin="round"/></svg><b>${wv(w.s)}</b></div>` });
+}
+async function loadWind() {
+  const r = radar; if (!r || !radarWindOn) return;
+  const pts = windGrid(r.map), now = Date.now();
+  const need = pts.filter(([la, lo]) => { const c = windCache.get(la + ',' + lo); return !c || now - c.t > 30 * 60000; });
+  if (need.length) {
+    try {
+      const j = await getJSON(API.forecast + '?' + qs({ latitude: need.map(p => p[0]).join(','), longitude: need.map(p => p[1]).join(','),
+        current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m', timezone: 'auto' }));
+      (Array.isArray(j) ? j : [j]).forEach((x, k) => { if (x && x.current) windCache.set(need[k][0] + ',' + need[k][1], { t: now, s: x.current.wind_speed_10m, d: x.current.wind_direction_10m, g: x.current.wind_gusts_10m }); });
+    } catch (e) { if (!windCache.size) { $('#rWindLeg').textContent = tr('Winddaten derzeit nicht verfügbar.', 'Wind data currently unavailable.'); } }
+  }
+  if (r !== radar || !radarWindOn) return;
+  r.wind.clearLayers();
+  pts.forEach(([la, lo]) => { const w = windCache.get(la + ',' + lo); if (w && w.s != null) L.marker([la, lo], { icon: windArrowIcon(w), pane: 'windPane', interactive: false, keyboard: false }).addTo(r.wind); });
+}
+function windLegend() {
+  const el = $('#rWindLeg'); if (!el) return;
+  el.classList.toggle('on', radarWindOn);
+  if (!radarWindOn) return;
+  const lims = [0, 10, 25, 40, 60, 80];
+  el.innerHTML = `<b style="color:var(--text)">${tr('Wind jetzt', 'Wind now')} (${wUnit()}):</b>` + lims.map((v, k) => `<span><i style="background:${windCol(v)}"></i>${k < lims.length - 1 ? wv(v) + '–' + wv(lims[k + 1]) : '≥ ' + wv(v)}</span>`).join('')
+    + `<span style="flex-basis:100%">${tr('Pfeile zeigen, wohin der Wind weht. Quelle: Open-Meteo (aktuelle Werte, nicht an die Radar-Zeitleiste gekoppelt).', 'Arrows show where the wind blows to. Source: Open-Meteo (current values, not linked to the radar timeline).')}</span>`;
+}
+function setRadarWind(on) {
+  radarWindOn = on; store.set('radarWind', on);
+  const b = $('#rWind'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
+  windLegend();
+  if (!radar) return;
+  if (on) { radar.wind.addTo(radar.map); loadWind(); } else radar.wind.remove();
+}
+
 function initRadar() {
   if (!window.L) { window.addEventListener('load', () => { if (state.view === 'radar') render(); }, { once: true }); return; }
   const loc = state.loc;
@@ -1555,7 +1624,14 @@ function initRadar() {
   baseLayer(map, 12);
   L.marker([loc.lat, loc.lon], { icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
   addFavPins(map, L.layerGroup().addTo(map));
-  radar = { map, src: radarSrc(), frames: [], layers: {}, idx: 0, nowIdx: 0, playing: false, anim: null, refresh: null, host: '' };
+  radar = { map, src: radarSrc(), frames: [], layers: {}, idx: 0, nowIdx: 0, playing: false, anim: null, refresh: null, host: '', wind: L.layerGroup() };
+  // Windpfeile über dem Radarbild
+  map.createPane('windPane'); map.getPane('windPane').style.zIndex = 450; map.getPane('windPane').style.pointerEvents = 'none';
+  radar.wind = L.layerGroup();
+  if (radarWindOn) radar.wind.addTo(map);
+  let wt = null; map.on('moveend', () => { clearTimeout(wt); wt = setTimeout(loadWind, 450); });
+  $('#rWind').onclick = () => setRadarWind(!radarWindOn);
+  windLegend(); loadWind();
   $('#rMe').onclick = () => map.setView([loc.lat, loc.lon], Math.max(map.getZoom(), 8));
   $('#rPlay').onclick = () => radarPlay(!radar.playing);
   $('#rSlider').oninput = e => { radarPlay(false); radarShow(+e.target.value); };
