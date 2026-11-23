@@ -377,7 +377,9 @@
   .r-time.fc small{color:#b06b00}
   .r-me{position:absolute;right:10px;bottom:14px;z-index:500;width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.3);display:grid;place-items:center;color:var(--blue)}
   .r-me svg{width:22px;height:22px}
-  svg.chart .sleigh{pointer-events:none;transition:opacity .2s}
+  svg.chart .sleigh{pointer-events:auto;cursor:pointer;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
+  svg.chart .sleigh:focus{outline:none}
+  svg.chart .gift{pointer-events:none}
   svg.chart .sleigh .lb{display:none}
   svg.chart .sleigh.ph .la{display:none}
   svg.chart .sleigh.ph .lb{display:inline}
@@ -1302,39 +1304,166 @@ function chart(series, n, colW, h) {
       if (s.labels !== false) out += `<text x="${cx}" y="${(s.below ? cy + 19 : cy - 9).toFixed(1)}" text-anchor="middle" fill="${s.color}">${Math.round(v)}°</text>`;
     });
   });
-  if (sleighOn && n > 1) out += `<g class="sleigh" aria-hidden="true" style="opacity:0"><g transform="translate(0 -7) scale(-.92 .92)">${SLEIGH_SVG}</g></g>`;
+  if (sleighOn && n > 1) out += `<g class="sleigh" role="button" aria-label="${tr('Rentierschlitten antippen', 'Tap the reindeer sleigh')}" style="opacity:0"><g transform="translate(0 -7) scale(-.92 .92)">${SLEIGH_SVG}<rect x="-40" y="-24" width="80" height="34" fill="transparent"/></g></g>`;
   return `<svg class="chart" width="${n * colW}" height="${h}" style="display:block;overflow:visible">${out}</svg>`;
 }
 /* ---------- Rentierschlitten: fährt entlang der Temperaturkurven (Zeichnung aus der Radio-Seite) ---------- */
 let sleighOn = store.get('sleighOn', true);
 const SLEIGH_SVG = '<path d="M-14 -2 L-6 0" stroke="#d4a52a" stroke-width="1.2"/><g class="la" stroke="#6b4320" stroke-width="1.6" stroke-linecap="round"><path d="M-26 2 L-30 8 M-24 2 L-22 8 M-17 2 L-20 8 M-15 2 L-11 8"/></g><g class="lb" stroke="#6b4320" stroke-width="1.6" stroke-linecap="round"><path d="M-26 2 L-26 8 M-24 2 L-27 8 M-17 2 L-15 8 M-15 2 L-14 8"/></g><ellipse cx="-20.5" cy="-1" rx="8.5" ry="4.3" fill="#8b5a2b"/><path d="M-27 -3 L-24 -1 L-28 -9 L-31.5 -8 Z" fill="#8b5a2b"/><ellipse cx="-31.5" cy="-8" rx="4.4" ry="2.6" fill="#8b5a2b"/><circle cx="-35.6" cy="-7.6" r="1.1" fill="#2b1a0e"/><circle cx="-31" cy="-9" r=".7" fill="#1a1a1a"/><path d="M-29.5 -10 L-28 -15 M-28.6 -12.8 L-26.2 -13.6 M-31.5 -10.3 L-33 -15.5 M-32.3 -13.2 L-34.8 -13.6" stroke="#5a3a1e" stroke-width="1" stroke-linecap="round" fill="none"/><path d="M-12 -3 L-10 -5 L-11 -1 Z" fill="#f3ead8"/><path d="M-9 7 Q-12 4 -7.5 4 M-9 7 L33 7 Q36.5 7 36 3.5" stroke="#d4a52a" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M0 3 L0 7 M26 3 L26 7" stroke="#d4a52a" stroke-width="1.2"/><path d="M-5 3 Q-9 -4 -3.5 -5 L4 -5 L6 -1.5 L29 -1.5 L31.5 -10 L35 -10 L34 3 Z" fill="#c62a20" stroke="#7d130d" stroke-width=".7"/><path d="M-3.5 -5 L4 -5 L6 -1.5 L29 -1.5" stroke="#d4a52a" stroke-width="1" fill="none"/><path d="M26 -2 Q25 -11 30 -12 Q34 -11 33 -2 Z" fill="#3f7a3a"/><path d="M28.5 -12 L31.5 -12" stroke="#d4a52a" stroke-width="1"/><ellipse cx="18" cy="-6" rx="6.2" ry="5.2" fill="#d22a20"/><path d="M12 -5.5 L24 -5.5" stroke="#222" stroke-width="1.2"/><rect x="17" y="-6.4" width="2" height="1.8" fill="#d4a52a"/><path d="M13.5 -8 L7 -4" stroke="#d22a20" stroke-width="2.4" stroke-linecap="round"/><circle cx="6.7" cy="-3.8" r="1.2" fill="#222"/><circle cx="16" cy="-13.5" r="3.3" fill="#f2c9a0"/><path d="M12.6 -13 Q12 -8.5 15.5 -7.8 Q19.3 -8.2 19.2 -12.4 Q16 -11 12.6 -13 Z" fill="#fff"/><path d="M12.4 -15.4 L19.6 -15.4 L22.8 -21 Z" fill="#d22a20"/><rect x="12" y="-16.6" width="8" height="2" rx="1" fill="#fff"/><circle cx="23" cy="-21" r="1.4" fill="#fff"/><circle cx="14.6" cy="-13.6" r=".55" fill="#222"/>';
-const sleighPos = new WeakMap();
-let sleighRaf = 0, sleighLast = 0;
+const sleighPos = new WeakMap(), sleighStop = new WeakMap();
+let sleighRaf = 0, sleighLast = 0, gifts = [];
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* Position des Weihnachtsmanns (für die Pakete) in Diagramm-Koordinaten */
+function santaPoint(g) {
+  const m = /translate\(([-\d.]+) ([-\d.]+)\) rotate\(([-\d.]+)\)/.exec(g.getAttribute('transform') || ''); if (!m) return null;
+  const a = +m[3] * Math.PI / 180, lx = -0.92 * 16, ly = -7 + 0.92 * -12;
+  return { x: +m[1] + lx * Math.cos(a) - ly * Math.sin(a), y: +m[2] + lx * Math.sin(a) + ly * Math.cos(a) };
+}
+const GIFT_COL = [['#d22a20', '#ffd34d'], ['#2a78d6', '#fff'], ['#3f7a3a', '#ffd34d'], ['#8e44ad', '#f3ead8'], ['#e3a008', '#c62a20']];
+function throwGift(g) {
+  const svg = g.ownerSVGElement || g.parentNode, p = santaPoint(g); if (!p) return;
+  const [c1, c2] = GIFT_COL[Math.floor(Math.random() * GIFT_COL.length)], sz = 6 + Math.random() * 3;
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  el.setAttribute('class', 'gift');
+  el.innerHTML = `<rect x="${-sz / 2}" y="${-sz / 2}" width="${sz}" height="${sz}" rx="1" fill="${c1}" stroke="rgba(0,0,0,.25)" stroke-width=".5"/><path d="M0 ${-sz / 2}V${sz / 2}M${-sz / 2} 0H${sz / 2}" stroke="${c2}" stroke-width="1.4"/><path d="M0 ${-sz / 2}q-3 -3.5 -4 -.5M0 ${-sz / 2}q3 -3.5 4 -.5" stroke="${c2}" stroke-width="1.2" fill="none"/>`;
+  svg.appendChild(el);
+  gifts.push({ el, x: p.x, y: p.y, vx: -20 - Math.random() * 70, vy: -110 - Math.random() * 60, r: 0, vr: (Math.random() - 0.5) * 720, t: 0, floor: +svg.getAttribute('height') + 40 });
+  sleighSfx.whoosh();
+}
 function sleighFrame(now) {
   sleighRaf = 0;
   const gs = document.querySelectorAll('svg.chart .sleigh');
-  if (!gs.length || !sleighOn) return;
   const dt = sleighLast ? Math.min(now - sleighLast, 100) : 16; sleighLast = now;
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const still = reducedMotion();
+  let level = 0, pan = 0, running = false;
   gs.forEach(g => {
     const trk = g.parentNode.querySelector('.sl-trk'); if (!trk) return;
     const r = g.parentNode.getBoundingClientRect();
     if (r.bottom < 0 || r.top > innerHeight) return;                     // nicht sichtbar → nicht rechnen
     const L = trk.getTotalLength(); if (!L) return;
+    const stopUntil = sleighStop.get(g) || 0, stopped = now < stopUntil;
     let x = sleighPos.has(g) ? sleighPos.get(g) : (still ? L * 0.3 : 0);
-    if (!still) { x += dt * 0.045; if (x > L + 40) x = -40; }          // ca. 45 px pro Sekunde, dann von vorn
+    if (!still && !stopped) { x += dt * 0.045; if (x > L + 40) x = -40; }   // ca. 45 px pro Sekunde, dann von vorn
     sleighPos.set(g, x);
     const c = Math.max(0, Math.min(L, x)), p = trk.getPointAtLength(c), q = trk.getPointAtLength(Math.min(L, c + 2)), p0 = trk.getPointAtLength(Math.max(0, c - 2));
     const a = Math.atan2(q.y - p0.y, q.x - p0.x) * 180 / Math.PI;
     g.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${a.toFixed(1)})`);
-    g.style.opacity = Math.max(0, Math.min(1, Math.min(x + 30, L + 30 - x) / 30)).toFixed(2);
-    g.classList.toggle('ph', !still && Math.floor(now / 140) % 2 === 1);
+    const op = Math.max(0, Math.min(1, Math.min(x + 30, L + 30 - x) / 30));
+    g.style.opacity = op.toFixed(2);
+    g.classList.toggle('ph', !still && !stopped && Math.floor(now / 140) % 2 === 1);
+    // Hörbar nur, wenn der Schlitten wirklich im Bild ist (auch im waagrecht scrollbaren Bereich)
+    const gr = g.getBoundingClientRect(), box = (g.closest('.hscroll') || g.parentNode).getBoundingClientRect();
+    const inView = gr.right > Math.max(0, box.left) && gr.left < Math.min(innerWidth, box.right) && gr.bottom > 0 && gr.top < innerHeight;
+    if (inView && !stopped && !still && op * 1 > level) { level = op; pan = Math.max(-1, Math.min(1, ((gr.left + gr.right) / 2 / innerWidth) * 2 - 1)) * 0.7; }
+    if (!still) running = true;
   });
-  if (!still) sleighRaf = requestAnimationFrame(sleighFrame);
+  // fliegende Pakete
+  gifts = gifts.filter(o => {
+    o.t += dt / 1000; o.vy += 330 * dt / 1000; o.x += o.vx * dt / 1000; o.y += o.vy * dt / 1000; o.r += o.vr * dt / 1000;
+    if (o.y > o.floor || o.t > 2.4 || !o.el.isConnected) { o.el.remove(); return false; }
+    o.el.setAttribute('transform', `translate(${o.x.toFixed(1)} ${o.y.toFixed(1)}) rotate(${o.r.toFixed(0)})`);
+    o.el.style.opacity = Math.min(1, (2.4 - o.t) / 0.5).toFixed(2);
+    return true;
+  });
+  sleighSfx.update(document.hidden ? 0 : level, pan);
+  if ((running && gs.length && sleighOn) || gifts.length) sleighRaf = requestAnimationFrame(sleighFrame);
+  else sleighSfx.update(0, 0);
 }
 function startSleighs() { if (!sleighRaf && sleighOn) { sleighLast = 0; sleighRaf = requestAnimationFrame(sleighFrame); } }
-document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(sleighRaf); sleighRaf = 0; } else startSleighs(); });
-window.addEventListener('scroll', () => { if (matchMedia('(prefers-reduced-motion: reduce)').matches) startSleighs(); }, { passive: true });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(sleighRaf); sleighRaf = 0; sleighSfx.update(0, 0); } else startSleighs(); });
+/* Antippen: Schlitten hält, „Ho, ho, ho!“, Pakete fliegen, dann geht es weiter */
+document.addEventListener('click', e => {
+  const g = e.target.closest && e.target.closest('svg.chart .sleigh'); if (!g) return;
+  e.stopPropagation(); e.preventDefault();
+  const now = performance.now(); if ((sleighStop.get(g) || 0) > now) return;
+  sleighStop.set(g, now + 3300);
+  sleighSfx.hohoho();
+  if (!reducedMotion()) [350, 900, 1450].forEach(ms => setTimeout(() => { if (g.isConnected) { throwGift(g); startSleighs(); } }, ms));
+  startSleighs();
+}, true);
+
+/* ---------- Schlittengeräusche, im Browser erzeugt (Web Audio): Schellen, Kufen im Schnee, „Ho, ho, ho“ ---------- */
+let sleighSnd = store.get('sleighSnd', true);
+const sleighSfx = (() => {
+  let C = null, master = null, panner = null, swish = null, bells = [], next = 0, lvl = 0;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  function init() {
+    if (C || !AC) return C;
+    try { C = new AC(); } catch (e) { return null; }
+    master = C.createGain(); master.gain.value = 0;
+    panner = C.createStereoPanner ? C.createStereoPanner() : null;
+    if (panner) master.connect(panner).connect(C.destination); else master.connect(C.destination);
+    // Schellen: kurze, metallische Klänge mit unharmonischen Obertönen (vier Varianten)
+    for (let v = 0; v < 4; v++) {
+      const n = Math.floor(C.sampleRate * 0.4), b = C.createBuffer(1, n, C.sampleRate), d = b.getChannelData(0), f = 2300 + v * 240;
+      const parts = [[1, 1], [2.32, 0.55], [4.25, 0.35], [6.63, 0.2], [9.1, 0.1]];
+      for (let i = 0; i < n; i++) { const t = i / C.sampleRate; let x = 0; for (const [m, a] of parts) x += a * Math.sin(2 * Math.PI * f * m * t + v) * Math.exp(-t * (7 + m * 3.5)); d[i] = x * 0.22 * (1 - Math.exp(-t * 3000)); }
+      bells.push(b);
+    }
+    // Kufen im Schnee: gefiltertes Rauschen, das bei jedem Schritt anschwillt
+    const nl = C.sampleRate * 2, nb = C.createBuffer(1, nl, C.sampleRate), nd = nb.getChannelData(0);
+    let br = 0; for (let i = 0; i < nl; i++) { br = br * 0.6 + (Math.random() * 2 - 1) * 0.4; nd[i] = br; }
+    const src = C.createBufferSource(); src.buffer = nb; src.loop = true;
+    const bp = C.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.5;
+    const lp = C.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
+    swish = C.createGain(); swish.gain.value = 0;
+    src.connect(bp).connect(lp).connect(swish).connect(master); src.start();
+    return C;
+  }
+  // Ton ist erst nach einer Berührung erlaubt
+  const unlock = () => { if (!sleighSnd || !sleighOn) return; if (init() && C.state === 'suspended') C.resume(); };
+  ['pointerdown', 'keydown', 'touchend'].forEach(ev => window.addEventListener(ev, unlock, { capture: true, passive: true }));
+  function stride(t) {
+    const hits = 2 + Math.floor(Math.random() * 3);
+    for (let k = 0; k < hits; k++) {
+      const s = C.createBufferSource(), g = C.createGain();
+      s.buffer = bells[Math.floor(Math.random() * bells.length)]; s.playbackRate.value = 0.88 + Math.random() * 0.3;
+      g.gain.value = 0.25 + Math.random() * 0.3;
+      s.connect(g).connect(master); s.start(t + k * (0.03 + Math.random() * 0.03));
+    }
+    swish.gain.setValueAtTime(0.03, t); swish.gain.linearRampToValueAtTime(0.16, t + 0.07); swish.gain.exponentialRampToValueAtTime(0.03, t + 0.26);
+  }
+  return {
+    update(level, pan) {
+      if (!C || C.state !== 'running') return;
+      const target = sleighSnd && sleighOn ? level : 0, now = C.currentTime;
+      lvl = target;
+      master.gain.setTargetAtTime(target * 0.45, now, 0.25);
+      if (panner) panner.pan.setTargetAtTime(pan, now, 0.15);
+      if (target < 0.05) { next = 0; return; }
+      if (next < now) next = now + 0.05;
+      while (next < now + 0.15) { stride(next); next += 0.27 + Math.random() * 0.05; }
+    },
+    whoosh() {
+      if (!sleighSnd || !init() || C.state !== 'running') return;
+      const t = C.currentTime, o = C.createOscillator(), g = C.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(260, t + 0.35);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.06, t + 0.03); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      o.connect(g).connect(C.destination); o.start(t); o.stop(t + 0.45);
+    },
+    // „Ho, ho, ho“: tiefe Stimme aus Hauch („h“) und Vokal „o“ (Formanten bei ~450, 800 und 2600 Hz)
+    hohoho() {
+      if (!sleighSnd || !init()) return;
+      if (C.state === 'suspended') C.resume();
+      const t0 = C.currentTime + 0.05, out = C.createGain(); out.gain.value = 0.9; out.connect(C.destination);
+      [0, 0.45, 0.9].forEach((dt, k) => {
+        const t = t0 + dt, dur = k === 2 ? 0.55 : 0.32;
+        const hn = C.createBufferSource(), hb = C.createBuffer(1, Math.floor(C.sampleRate * 0.09), C.sampleRate), hd = hb.getChannelData(0);
+        for (let i = 0; i < hd.length; i++) hd[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / hd.length);
+        hn.buffer = hb; const hf = C.createBiquadFilter(); hf.type = 'bandpass'; hf.frequency.value = 900; hf.Q.value = 0.8;
+        const hg = C.createGain(); hg.gain.value = 0.22; hn.connect(hf).connect(hg).connect(out); hn.start(t - 0.06);
+        const o = C.createOscillator(); o.type = 'sawtooth';
+        o.frequency.setValueAtTime(118 - k * 4, t); o.frequency.linearRampToValueAtTime(96 - k * 7, t + dur);
+        const g = C.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.55, t + 0.05);
+        g.gain.setValueAtTime(0.55, t + dur - 0.1); g.gain.linearRampToValueAtTime(0, t + dur);
+        [[450, 6, 1], [800, 8, 0.45], [2600, 10, 0.07]].forEach(([f, q, a]) => { const bp = C.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; const ga = C.createGain(); ga.gain.value = a * 2.2; o.connect(bp).connect(ga).connect(g); });
+        g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+      });
+    },
+    level: () => lvl
+  };
+})();
+window.addEventListener('scroll', () => startSleighs(), { passive: true });
 
 /* ---------- Himmel im Hintergrund der aktuellen Wetterkarte ----------
    Tageszeit aus Sonnenauf-/untergang (Dämmerung ±45 Min.), Wetter aus dem Wettercode, Sturm ab Böen von 60 km/h,
@@ -2130,6 +2259,8 @@ function viewSettings() {
       <div class="opts" role="group" aria-label="${tr('Amsel', 'Blackbird')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-bird="${v}" class="${birdShown === v ? 'on' : ''}" aria-pressed="${birdShown === v}">${t}</button>`).join('')}</div></div>
     <div class="set-row"><b>🦌 ${tr('Rentierschlitten', 'Reindeer sleigh')}<small>${tr('Fährt mit dem Weihnachtsmann entlang der Temperaturkurven.', 'Rides with Santa along the temperature curves.')}</small></b>
       <div class="opts" role="group" aria-label="${tr('Rentierschlitten', 'Reindeer sleigh')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-sleigh="${v}" class="${sleighOn === v ? 'on' : ''}" aria-pressed="${sleighOn === v}">${t}</button>`).join('')}</div></div>
+    <div class="set-row"><b>🔔 ${tr('Schlittengeräusche', 'Sleigh sounds')}<small>${tr('Schellen und Kufen im Schnee, solange der Schlitten zu sehen ist; „Ho, ho, ho“ beim Antippen. Ton startet nach der ersten Berührung der Seite.', 'Bells and runners in the snow while the sleigh is in view; “Ho, ho, ho” when tapped. Sound starts after you first touch the page.')}</small></b>
+      <div class="opts" role="group" aria-label="${tr('Schlittengeräusche', 'Sleigh sounds')}">${[[false, tr('Aus', 'Off')], [true, tr('An', 'On')]].map(([v, t]) => `<button data-sleighsnd="${v}" class="${sleighSnd === v ? 'on' : ''}" aria-pressed="${sleighSnd === v}">${t}</button>`).join('')}</div></div>
   </div>
   <div class="card"><h2>${tr('Schnellauswahl', 'Quick presets')}</h2>
     <div class="tools-row">
@@ -2151,6 +2282,7 @@ function setLang(l) {
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.sleighsnd) { sleighSnd = b.dataset.sleighsnd === 'true'; store.set('sleighSnd', sleighSnd); if (!sleighSnd) sleighSfx.update(0, 0); render(); return; }
   if (b.dataset.sleigh) { sleighOn = b.dataset.sleigh === 'true'; store.set('sleighOn', sleighOn); render(); return; }
   if (b.dataset.bird) {
     birdShown = b.dataset.bird === 'true'; store.set('birdShow', birdShown);
