@@ -381,6 +381,11 @@
   svg.chart .sleigh:focus{outline:none}
   svg.chart .gift{pointer-events:none}
   svg.chart .walker{transition:opacity .2s}
+  svg.chart .forest,svg.chart .critters{pointer-events:none}
+  svg.chart .critter{transition:opacity .4s}
+  svg.chart .critter .lb{display:none}
+  svg.chart .critter.ph .la{display:none}
+  svg.chart .critter.ph .lb{display:inline}
   svg.chart .walker .lb{display:none}
   svg.chart .walker.ph .la{display:none}
   svg.chart .walker.ph .lb{display:inline}
@@ -1308,13 +1313,16 @@ function dayCard(i, open) {
 /* Linien-Diagramm über Spalten fester Breite */
 function chart(series, n, colW, h) {
   const all = series.flatMap(s => s.v).filter(v => v != null);
-  const lo = Math.min(...all), hi = Math.max(...all), span = Math.max(hi - lo, 1), top = 24, bot = 22;
+  const extra = forestOn && n > 1 ? 16 : 0; h += extra;          // Platz für die Bäume über der Kurve
+  const lo = Math.min(...all), hi = Math.max(...all), span = Math.max(hi - lo, 1), top = 24 + extra, bot = 22;
   const y = v => top + (h - top - bot) * (1 - (v - lo) / span);
   let out = '';
+  const ptsAll = series.map(s => s.v.map((v, i) => v == null ? null : [i * colW + colW / 2, y(v)]).filter(Boolean));
+  if (forestOn && n > 1) out += forestHTML(ptsAll, colW, n);
   series.forEach((s, si) => {
-    const pts = s.v.map((v, i) => v == null ? null : [i * colW + colW / 2, y(v)]).filter(Boolean);
-    const trk = [si === 0 && sleighOn ? 'sl-trk' : '', procOn && si === (series.length > 1 ? 1 : 0) ? 'pr-trk' : ''].filter(Boolean).join(' ');
-    out += `<polyline ${trk ? `class="${trk}" ` : ''}fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"/>`;
+    const pts = ptsAll[si];
+    const trk = [si === 0 && sleighOn ? 'sl-trk' : '', procOn && si === (series.length > 1 ? 1 : 0) ? 'pr-trk' : '', forestOn ? 'sc-trk' : ''].filter(Boolean).join(' ');
+    out += `<polyline ${trk ? `class="${trk}" ` : ''}data-i="${si}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"/>`;
     s.v.forEach((v, i) => {
       if (v == null) return;
       const cx = i * colW + colW / 2, cy = y(v);
@@ -1322,6 +1330,7 @@ function chart(series, n, colW, h) {
       if (s.labels !== false) out += `<text x="${cx}" y="${(s.below ? cy + 19 : cy - 9).toFixed(1)}" text-anchor="middle" fill="${s.color}">${Math.round(v)}°</text>`;
     });
   });
+  if (forestOn && n > 1) out += crittersHTML(ptsAll, colW, n);
   if (procOn && n > 1) out += `<g class="proc">${PROC_HTML()}</g>`;
   if (sleighOn && n > 1) out += `<g class="sleigh" role="button" aria-label="${tr('Rentierschlitten antippen', 'Tap the reindeer sleigh')}" style="opacity:0"><g transform="translate(0 -7) scale(-.92 .92)">${SLEIGH_SVG}<rect x="-40" y="-24" width="80" height="34" fill="transparent"/></g></g>`;
   return `<svg class="chart" width="${n * colW}" height="${h}" style="display:block;overflow:visible">${out}</svg>`;
@@ -1329,6 +1338,107 @@ function chart(series, n, colW, h) {
 /* ---------- Rentierschlitten: fährt entlang der Temperaturkurven (Zeichnung aus der Radio-Seite) ---------- */
 let sleighOn = store.get('sleighOn', true);
 const SLEIGH_SVG = '<path d="M-14 -2 L-6 0" stroke="#d4a52a" stroke-width="1.2"/><g class="la" stroke="#6b4320" stroke-width="1.6" stroke-linecap="round"><path d="M-26 2 L-30 8 M-24 2 L-22 8 M-17 2 L-20 8 M-15 2 L-11 8"/></g><g class="lb" stroke="#6b4320" stroke-width="1.6" stroke-linecap="round"><path d="M-26 2 L-26 8 M-24 2 L-27 8 M-17 2 L-15 8 M-15 2 L-14 8"/></g><ellipse cx="-20.5" cy="-1" rx="8.5" ry="4.3" fill="#8b5a2b"/><path d="M-27 -3 L-24 -1 L-28 -9 L-31.5 -8 Z" fill="#8b5a2b"/><ellipse cx="-31.5" cy="-8" rx="4.4" ry="2.6" fill="#8b5a2b"/><circle cx="-35.6" cy="-7.6" r="1.1" fill="#2b1a0e"/><circle cx="-31" cy="-9" r=".7" fill="#1a1a1a"/><path d="M-29.5 -10 L-28 -15 M-28.6 -12.8 L-26.2 -13.6 M-31.5 -10.3 L-33 -15.5 M-32.3 -13.2 L-34.8 -13.6" stroke="#5a3a1e" stroke-width="1" stroke-linecap="round" fill="none"/><path d="M-12 -3 L-10 -5 L-11 -1 Z" fill="#f3ead8"/><path d="M-9 7 Q-12 4 -7.5 4 M-9 7 L33 7 Q36.5 7 36 3.5" stroke="#d4a52a" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M0 3 L0 7 M26 3 L26 7" stroke="#d4a52a" stroke-width="1.2"/><path d="M-5 3 Q-9 -4 -3.5 -5 L4 -5 L6 -1.5 L29 -1.5 L31.5 -10 L35 -10 L34 3 Z" fill="#c62a20" stroke="#7d130d" stroke-width=".7"/><path d="M-3.5 -5 L4 -5 L6 -1.5 L29 -1.5" stroke="#d4a52a" stroke-width="1" fill="none"/><path d="M26 -2 Q25 -11 30 -12 Q34 -11 33 -2 Z" fill="#3f7a3a"/><path d="M28.5 -12 L31.5 -12" stroke="#d4a52a" stroke-width="1"/><ellipse cx="18" cy="-6" rx="6.2" ry="5.2" fill="#d22a20"/><path d="M12 -5.5 L24 -5.5" stroke="#222" stroke-width="1.2"/><rect x="17" y="-6.4" width="2" height="1.8" fill="#d4a52a"/><path d="M13.5 -8 L7 -4" stroke="#d22a20" stroke-width="2.4" stroke-linecap="round"/><circle cx="6.7" cy="-3.8" r="1.2" fill="#222"/><circle cx="16" cy="-13.5" r="3.3" fill="#f2c9a0"/><path d="M12.6 -13 Q12 -8.5 15.5 -7.8 Q19.3 -8.2 19.2 -12.4 Q16 -11 12.6 -13 Z" fill="#fff"/><path d="M12.4 -15.4 L19.6 -15.4 L22.8 -21 Z" fill="#d22a20"/><rect x="12" y="-16.6" width="8" height="2" rx="1" fill="#fff"/><circle cx="23" cy="-21" r="1.4" fill="#fff"/><circle cx="14.6" cy="-13.6" r=".55" fill="#222"/>';
+/* ---------- Winterwald: tief verschneite Nadelbäume in Gruppen, dazwischen Rehe und Hasen ---------- */
+let forestOn = store.get('forestOn', true);
+const seeded = seed => () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+const yOn = (pts, x) => {                     // Höhe der Kurve an Stelle x
+  for (let k = 1; k < pts.length; k++) if (x <= pts[k][0]) { const [x0, y0] = pts[k - 1], [x1, y1] = pts[k]; return y0 + (y1 - y0) * (x - x0) / (x1 - x0); }
+  return pts.length ? pts[pts.length - 1][1] : 0;
+};
+function snowTree(x, yb, h, dark) {
+  const w = h * 0.64, g = dark ? '#21472d' : '#2e5e3e', g2 = dark ? '#183a23' : '#24492f';
+  const tiers = [[-0.1, -0.56, 1], [-0.36, -0.8, 0.76], [-0.6, -1.02, 0.5]];
+  let t = `<g transform="translate(${x.toFixed(1)} ${yb.toFixed(1)})"><ellipse cx="0" cy="0.5" rx="${(w * 0.62).toFixed(1)}" ry="${(h * 0.06).toFixed(1)}" fill="#f4f8fc" stroke="#d6e2ee" stroke-width=".4"/>`
+    + `<rect x="${(-h * 0.05).toFixed(1)}" y="${(-h * 0.13).toFixed(1)}" width="${(h * 0.1).toFixed(1)}" height="${(h * 0.13).toFixed(1)}" fill="#5b3a22"/>`;
+  tiers.forEach(([b, a, sc]) => {
+    const yb2 = b * h, ya = a * h, tw = w * sc, half = tw / 2, ys = ya + (yb2 - ya) * 0.68, hs = half * 0.68;
+    t += `<path d="M${-half} ${yb2} L0 ${ya} L${half} ${yb2} Z" fill="${g}"/><path d="M0 ${ya} L${half} ${yb2} L${half * 0.15} ${yb2} Z" fill="${g2}"/>`
+      + `<path d="M0 ${ya} L${hs} ${ys} Q${hs * 0.55} ${ys + h * 0.05} ${hs * 0.15} ${ys + h * 0.01} Q${-hs * 0.25} ${ys + h * 0.06} ${-hs * 0.6} ${ys} L${-hs} ${ys} Z" fill="#fbfdff" stroke="#d6e2ee" stroke-width=".35"/>`
+      + `<ellipse cx="${(-half * 0.62).toFixed(1)}" cy="${(yb2 - 0.6).toFixed(1)}" rx="${(tw * 0.17).toFixed(1)}" ry="${(h * 0.035).toFixed(1)}" fill="#fbfdff"/>`
+      + `<ellipse cx="${(half * 0.1).toFixed(1)}" cy="${(yb2 - 0.4).toFixed(1)}" rx="${(tw * 0.2).toFixed(1)}" ry="${(h * 0.03).toFixed(1)}" fill="#fbfdff"/>`
+      + `<ellipse cx="${(half * 0.7).toFixed(1)}" cy="${(yb2 - 0.7).toFixed(1)}" rx="${(tw * 0.13).toFixed(1)}" ry="${(h * 0.03).toFixed(1)}" fill="#f1f6fb"/>`;
+  });
+  return t + '</g>';
+}
+function forestHTML(ptsAll, colW, n) {
+  let out = '<g class="forest" aria-hidden="true">';
+  ptsAll.forEach((pts, si) => {
+    if (pts.length < 2) return;
+    const R = seeded(n * 31 + colW * 7 + si * 101);
+    // Gruppen zwischen den Messpunkten, damit Punkte und Temperaturen frei bleiben
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (R() < 0.3) continue;
+      const mid = (pts[i][0] + pts[i + 1][0]) / 2, room = (pts[i + 1][0] - pts[i][0]) / 2 - 13;
+      const cnt = 2 + Math.floor(R() * 3), trees = [];
+      for (let k = 0; k < cnt; k++) trees.push({ x: mid + (R() * 2 - 1) * room, h: R() < 0.4 ? 22 + R() * 9 : 11 + R() * 6, d: R() < 0.4 });
+      trees.sort((a, b) => b.h - a.h).forEach(t => { out += snowTree(t.x, yOn(pts, t.x) + 1, t.h, t.d); });
+    }
+  });
+  return out + '</g>';
+}
+const DEER_SVG = (buck) => '<g class="la" stroke="#5a4330" stroke-width="1.3" stroke-linecap="round"><path d="M-6 -7 L-7 0 M-4 -7 L-3 0 M5 -7 L4 0 M7 -7 L8.5 0"/></g>'
+  + '<g class="lb" stroke="#5a4330" stroke-width="1.3" stroke-linecap="round"><path d="M-6 -7 L-5 0 M-4 -7 L-5.5 0 M5 -7 L6.5 0 M7 -7 L6 0"/></g>'
+  + '<ellipse cx="0" cy="-10" rx="8.5" ry="4" fill="#7a5f45"/><ellipse cx="-7.4" cy="-10.6" rx="2.2" ry="2.6" fill="#f3ede4"/>'
+  + '<g class="head"><path d="M4.5 -12 L8.6 -18.5 L11 -17.3 L8 -10 Z" fill="#7a5f45"/><ellipse cx="11.6" cy="-18.6" rx="3.3" ry="2" fill="#7a5f45" transform="rotate(12 11.6 -18.6)"/>'
+  + '<path d="M9.6 -20.1 L8.4 -23.6 L10.8 -20.6 Z" fill="#6b5236"/><circle cx="11.7" cy="-19.2" r=".5" fill="#111"/><circle cx="14.6" cy="-17.9" r=".7" fill="#222"/>'
+  + (buck ? '<path d="M10.8 -20.4 L10.4 -24.8 M10.5 -23.2 L11.8 -24.4" stroke="#6b5236" stroke-width=".8" stroke-linecap="round"/>' : '') + '</g>';
+const HARE_SVG = '<ellipse cx="0" cy="-4.5" rx="5.5" ry="4" fill="#9b8a77"/><ellipse cx="-2.4" cy="-2.2" rx="3.3" ry="2.3" fill="#8a7864"/>'
+  + '<circle cx="-5.6" cy="-5.6" r="1.4" fill="#fff"/><path d="M3.4 -1.6 L4.6 0" stroke="#8a7864" stroke-width="1.3" stroke-linecap="round"/>'
+  + '<g class="ears"><path d="M4.4 -9 L2.6 -16 L5.2 -9.4 Z" fill="#8a7864"/><path d="M5.6 -9.2 L5.9 -15.6 L6.8 -9.1 Z" fill="#9b8a77"/><path d="M2.6 -16 L3.1 -14.3 M5.9 -15.6 L6 -14" stroke="#222" stroke-width=".9"/></g>'
+  + '<ellipse cx="5.2" cy="-7.4" rx="2.8" ry="2.3" fill="#9b8a77"/><circle cx="6" cy="-8" r=".5" fill="#111"/><circle cx="7.8" cy="-7.3" r=".45" fill="#6b4b3a"/>';
+function crittersHTML(ptsAll, colW, n) {
+  let out = '<g class="critters" aria-hidden="true">';
+  ptsAll.forEach((pts, si) => {
+    if (pts.length < 2) return;
+    const R = seeded(n * 17 + colW * 3 + si * 57), W = pts[pts.length - 1][0] - pts[0][0];
+    const count = Math.max(2, Math.round(W / 150));
+    for (let k = 0; k < count; k++) {
+      const deer = k % 2 === 0, x = pts[0][0] + W * (k + 0.5) / count + (R() - 0.5) * 30;
+      out += `<g class="critter ${deer ? 'deer' : 'hare'}" data-t="${si}" data-x="${x.toFixed(0)}" data-span="${(W / count * 0.6).toFixed(0)}" style="opacity:0">${deer ? DEER_SVG(R() < 0.4) : HARE_SVG}</g>`;
+    }
+  });
+  return out + '</g>';
+}
+const critState = new WeakMap();
+function critterFrame(now, dt, still) {
+  let running = false;
+  document.querySelectorAll('svg.chart .critter').forEach(c => {
+    const svg = c.ownerSVGElement; if (!svg) return;
+    const r = svg.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) return;
+    const trk = svg.querySelector(`.sc-trk[data-i="${c.dataset.t}"]`); if (!trk) return;
+    const L = trk.getTotalLength(), deer = c.classList.contains('deer');
+    let S = critState.get(c);
+    if (!S) {
+      const x0 = +c.dataset.x, sp = +c.dataset.span;
+      S = { x: x0, lo: Math.max(6, x0 - sp), hi: Math.min(L - 6, x0 + sp), dir: Math.random() < 0.5 ? 1 : -1, tgt: x0, pause: now + Math.random() * 2500, mode: 'idle' };
+      critState.set(c, S);
+    }
+    if (!still) {
+      if (now < S.pause) { /* steht: Reh äst, Hase sitzt */ }
+      else if (Math.abs(S.tgt - S.x) < 1) {
+        S.pause = now + (deer ? 1800 + Math.random() * 4500 : 1000 + Math.random() * 3000);
+        S.mode = deer ? (Math.random() < 0.65 ? 'graze' : 'look') : 'sit';
+        S.tgt = S.lo + Math.random() * (S.hi - S.lo);
+      } else {
+        S.mode = 'move'; S.dir = S.tgt > S.x ? 1 : -1;
+        const v = (deer ? 0.012 : 0.028) * dt;
+        S.x += Math.sign(S.tgt - S.x) * Math.min(v, Math.abs(S.tgt - S.x));
+      }
+      running = true;
+    }
+    const moving = S.mode === 'move' && now >= S.pause && !still;
+    const p = trk.getPointAtLength(Math.max(0, Math.min(L, S.x)));
+    let lift = 0;
+    if (!deer && moving) lift = Math.abs(Math.sin(now / 130)) * 4.5;              // Hase hoppelt
+    c.setAttribute('transform', `translate(${p.x.toFixed(1)} ${(p.y - lift).toFixed(1)}) scale(${S.dir} 1)`);
+    c.style.opacity = '1';
+    c.classList.toggle('ph', moving && deer && Math.floor(now / 260) % 2 === 1);
+    if (deer) { const hd = c.querySelector('.head'); if (hd) hd.setAttribute('transform', !moving && S.mode === 'graze' && now < S.pause ? 'rotate(58 5 -11)' : ''); }
+    else { const ea = c.querySelector('.ears'); if (ea) ea.setAttribute('transform', !moving && Math.floor(now / 900) % 5 === 0 ? 'rotate(-14 5 -9)' : ''); }
+  });
+  return running;
+}
+
 /* ---------- Nikolaus und Krampusse: wandern entlang der Temperaturkurve ---------- */
 let procOn = store.get('procOn', true);
 const NIK_SVG = '<g class="la" fill="#2b2b2b"><ellipse cx="-3.5" cy="-0.6" rx="2.6" ry="1.1"/><ellipse cx="4.5" cy="-0.6" rx="2.6" ry="1.1"/></g><g class="lb" fill="#2b2b2b"><ellipse cx="-1" cy="-0.6" rx="2.6" ry="1.1"/><ellipse cx="2.5" cy="-0.6" rx="2.6" ry="1.1"/></g><path d="M-8 -1.5 L-6 -24 Q0 -27.5 6 -24 L9 -1.5 Z" fill="#c62a20" stroke="#7d130d" stroke-width=".6"/><path d="M-8 -3.2 L9 -3.2" stroke="#fff" stroke-width="2.4"/><path d="M5.6 -23.5 L8.4 -3" stroke="#fff" stroke-width="2"/><path d="M2 -21 Q7 -19 10.5 -16.5" stroke="#c62a20" stroke-width="3.6" stroke-linecap="round" fill="none"/><path d="M12 1 L12 -38" stroke="#d4a52a" stroke-width="1.6" stroke-linecap="round"/><path d="M12 -38 Q12 -44.5 16 -44 Q19.5 -42.5 17.5 -39.5 Q16 -38 15 -39.8" stroke="#d4a52a" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="11.2" cy="-16.5" r="1.8" fill="#f2c9a0"/><circle cx="2" cy="-30" r="4.2" fill="#f2c9a0"/><path d="M-1.5 -30.5 Q-2.5 -22 3 -19.5 Q8.5 -21.5 6.6 -29.5 Q4 -27 -1.5 -30.5 Z" fill="#fff" stroke="#ddd" stroke-width=".4"/><circle cx="4" cy="-31.2" r=".6" fill="#222"/><path d="M-2.4 -33 L-1.8 -42 Q2 -46.5 5.8 -42 L6.4 -33 Z" fill="#c62a20" stroke="#d4a52a" stroke-width=".8"/><path d="M2 -44.5 L2 -33.5 M0 -39.5 L4 -39.5" stroke="#d4a52a" stroke-width="1"/>';
@@ -1431,6 +1541,7 @@ function sleighFrame(now) {
   const still = reducedMotion();
   let level = 0, pan = 0, running = false;
   const procRunning = procOn ? procFrame(now, dt, still) : (sleighSfx.krampus(0, 0), false);
+  const critRunning = forestOn ? critterFrame(now, dt, still) : false;
   gs.forEach(g => {
     const trk = g.parentNode.querySelector('.sl-trk'); if (!trk) return;
     const r = g.parentNode.getBoundingClientRect();
@@ -1461,10 +1572,10 @@ function sleighFrame(now) {
     return true;
   });
   sleighSfx.update(document.hidden ? 0 : level, pan);
-  if ((running && gs.length && sleighOn) || procRunning || gifts.length) sleighRaf = requestAnimationFrame(sleighFrame);
+  if ((running && gs.length && sleighOn) || procRunning || critRunning || gifts.length) sleighRaf = requestAnimationFrame(sleighFrame);
   else { sleighSfx.update(0, 0); sleighSfx.krampus(0, 0); }
 }
-function startSleighs() { if (!sleighRaf && (sleighOn || procOn)) { sleighLast = 0; sleighRaf = requestAnimationFrame(sleighFrame); } }
+function startSleighs() { if (!sleighRaf && (sleighOn || procOn || forestOn)) { sleighLast = 0; sleighRaf = requestAnimationFrame(sleighFrame); } }
 document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(sleighRaf); sleighRaf = 0; sleighSfx.update(0, 0); sleighSfx.krampus(0, 0); } else startSleighs(); });
 /* Antippen: Schlitten hält, „Ho, ho, ho!“, Pakete fliegen, dann geht es weiter */
 document.addEventListener('click', e => {
@@ -2472,6 +2583,8 @@ function viewSettings() {
       <div class="opts" role="group" aria-label="${tr('Amsel', 'Blackbird')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-bird="${v}" class="${birdShown === v ? 'on' : ''}" aria-pressed="${birdShown === v}">${t}</button>`).join('')}</div></div>
     <div class="set-row"><b>🦌 ${tr('Rentierschlitten', 'Reindeer sleigh')}<small>${tr('Fährt mit dem Weihnachtsmann entlang der Temperaturkurven.', 'Rides with Santa along the temperature curves.')}</small></b>
       <div class="opts" role="group" aria-label="${tr('Rentierschlitten', 'Reindeer sleigh')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-sleigh="${v}" class="${sleighOn === v ? 'on' : ''}" aria-pressed="${sleighOn === v}">${t}</button>`).join('')}</div></div>
+    <div class="set-row"><b>🌲 ${tr('Winterwald', 'Winter forest')}<small>${tr('Tief verschneite Nadelbäume in Gruppen entlang der Temperaturkurven, dazwischen Rehe und Hasen.', 'Deep-snow conifers in groups along the temperature curves, with deer and hares in between.')}</small></b>
+      <div class="opts" role="group" aria-label="${tr('Winterwald', 'Winter forest')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-forest="${v}" class="${forestOn === v ? 'on' : ''}" aria-pressed="${forestOn === v}">${t}</button>`).join('')}</div></div>
     <div class="set-row"><b>👹 ${tr('Nikolaus & Krampus', 'St Nicholas & Krampus')}<small>${tr('Wandern entlang der Temperaturkurve; Krampus antippen – er dreht sich um, wird riesig und brummt.', 'Walk along the temperature curve; tap a Krampus – he turns round, grows huge and growls.')}</small></b>
       <div class="opts" role="group" aria-label="${tr('Nikolaus & Krampus', 'St Nicholas & Krampus')}">${[[false, tr('Ausgeblendet', 'Hidden')], [true, tr('Einblenden', 'Show')]].map(([v, t]) => `<button data-proc="${v}" class="${procOn === v ? 'on' : ''}" aria-pressed="${procOn === v}">${t}</button>`).join('')}</div></div>
     <div class="set-row"><b>🔔 ${tr('Geräusche', 'Sounds')}<small>${tr('Schlittenschellen, Kufen im Schnee und Kuhglocken der Krampusse, solange sie zu sehen sind; „Ho, ho, ho“ und Krampus-Brummen beim Antippen. Ton startet nach der ersten Berührung der Seite.', 'Sleigh bells, runners in the snow and the Krampus cowbells while they are in view; “Ho, ho, ho” and the Krampus growl when tapped. Sound starts after you first touch the page.')}</small></b>
@@ -2497,6 +2610,7 @@ function setLang(l) {
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.forest) { forestOn = b.dataset.forest === 'true'; store.set('forestOn', forestOn); render(); return; }
   if (b.dataset.proc) { procOn = b.dataset.proc === 'true'; store.set('procOn', procOn); if (!procOn) sleighSfx.krampus(0, 0); render(); return; }
   if (b.dataset.sleighsnd) { sleighSnd = b.dataset.sleighsnd === 'true'; store.set('sleighSnd', sleighSnd); if (!sleighSnd) sleighSfx.update(0, 0); render(); return; }
   if (b.dataset.sleigh) { sleighOn = b.dataset.sleigh === 'true'; store.set('sleighOn', sleighOn); render(); return; }
