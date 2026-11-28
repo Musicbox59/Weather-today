@@ -341,6 +341,10 @@
   .ampel i.on.g{background:#2fbf5b;box-shadow:0 0 6px #2fbf5b}
   .ampel i.on.y{background:#f2c200;box-shadow:0 0 6px #f2c200}
   .ampel i.on.r{background:#e5322d;box-shadow:0 0 6px #e5322d}
+  .ampel.mini{flex-direction:row;gap:2px;padding:2px 3px;border-radius:6px}
+  .ampel.mini i{width:7px;height:7px}
+  .ampel.mini i.on{box-shadow:0 0 3px currentColor}
+  .fbar .fm .aq{color:var(--text)}
   .aq-tile .t{flex:1;min-width:0}
   .aq-tile .t b{font-size:16px}
   .aq-tile .t em{display:block;font-style:normal;font-size:12px;color:var(--muted)}
@@ -2325,7 +2329,7 @@ function radarPlay(on) {
 }
 
 /* ---------- Favoriten-Seite ---------- */
-let favWx = { k: '', at: 0, list: null }, favEdit = false, favPollen = { k: '', list: {} };
+let favWx = { k: '', at: 0, list: null }, favEdit = false, favPollen = { k: '', list: {} }, favAir = { k: '', list: {} };
 const favKeyAll = () => favs.map(key).join(';');
 async function loadFavPollen(k) {
   try {
@@ -2339,11 +2343,24 @@ async function loadFavPollen(k) {
   } catch (e) { favPollen = { k, list: {}, err: true }; }
   if (state.view === 'favs') render();
 }
+/* Luftqualität aller Favoriten in einer Abfrage */
+async function loadFavAir(k) {
+  try {
+    const j = await getJSON(API.air + '?' + qs({
+      latitude: favs.map(f => f.lat.toFixed(4)).join(','), longitude: favs.map(f => f.lon.toFixed(4)).join(','),
+      timezone: 'auto', current: ['european_aqi', ...AQ_POL.map(p => p[1])].join(',') }));
+    if (favKeyAll() !== k) return;
+    const arr = Array.isArray(j) ? j : [j], list = {};
+    favs.forEach((f, i) => { if (arr[i] && arr[i].current && arr[i].current.european_aqi != null) list[key(f)] = arr[i].current; });
+    favAir = { k, list };
+  } catch (e) { favAir = { k, list: {}, err: true }; }
+  if (state.view === 'favs') render();
+}
 async function loadFavWeather(force) {
   const k = favKeyAll();
   if (!favs.length || (!force && favWx.k === k && Date.now() - favWx.at < 10 * 60000)) return;
   favWx = { k, at: Date.now(), list: null, loading: true };
-  loadFavPollen(k);
+  loadFavPollen(k); loadFavAir(k);
   try {
     const j = await getJSON(API.forecast + '?' + qs({
       latitude: favs.map(f => f.lat.toFixed(4)).join(','), longitude: favs.map(f => f.lon.toFixed(4)).join(','),
@@ -2363,6 +2380,12 @@ function favPolIcon(f, i, svg) {
   const P = favPollen.list[key(f)], date = P && P.hourly && P.hourly.time ? P.hourly.time[0].slice(0, 10) : '';
   return `<span class="pol-ic" data-favpol="${i}" data-date="${date}" role="button" tabindex="0" title="${tr('Pollenbelastung anzeigen', 'Show pollen levels')}" aria-label="${tr('Pollenbelastung anzeigen', 'Show pollen levels')}">${svg}${leafHTML(date, null, null, P)}</span>`;
 }
+function favAirHTML(f) {
+  const a = favAir.list[key(f)]; if (!a) return '';
+  const lv = aqLevel(a.european_aqi), m = airMain(a), L2 = LANG === 'en' ? 1 : 0;
+  const tip = tr('Luftqualität', 'Air quality') + ': ' + lv[2][L2] + ' (' + tr('Index', 'index') + ' ' + Math.round(a.european_aqi) + ')' + (m && a.european_aqi >= 40 ? ' – ' + m.p[2][L2] : '');
+  return `<span class="aq" title="${esc(tip)}">${ampelHTML(lv[1], true)} ${tr('Luft', 'Air')}: ${lv[2][L2]}</span>`;
+}
 /* Farbe des Balkens nach Temperatur (blau = kalt, rot = warm) */
 const tempColor = t => t == null ? '#ccd' : t <= -10 ? '#5b6ee1' : t <= 0 ? '#3d8ce0' : t <= 10 ? '#45b0c8' : t <= 20 ? '#8cc63f' : t <= 28 ? '#f2b134' : '#e1462f';
 function favRow(f, i) {
@@ -2377,7 +2400,8 @@ function favRow(f, i) {
       + (rain >= 0.1 ? `<span class="rain">💧 ${mm(rain)} ${tr('Regen', 'rain')}</span>` : '')
       + (rain < 0.1 && snow < 0.1 ? `<span class="rain">💧 ${tr('kein Niederschlag', 'no precipitation')}</span>` : '')
       + (prob != null ? `<span class="rain">☂ ${prob} %</span>` : '')
-      + (sun != null ? `<span class="sun">☀ ${dec(sun / 3600)} h ${tr('Sonne', 'sun')}</span>` : '');
+      + (sun != null ? `<span class="sun">☀ ${dec(sun / 3600)} h ${tr('Sonne', 'sun')}</span>` : '')
+      + favAirHTML(f);
   } else meta = `<span>${favWx.loading ? tr('Wetter wird geladen …', 'Loading weather …') : favWx.err ? tr('Wetter nicht verfügbar', 'Weather unavailable') : ''}</span>`;
   return `<div class="fbar ${cur ? 'cur' : ''}" data-open="${i}" style="border-left-color:${tempColor(C && C.temperature_2m)}">
     <div>${C ? favPolIcon(f, i, icon(C.weather_code, C.is_day, 50)) : icon(3, 1, 50).replace('<svg', '<svg style="opacity:.25"')}</div>
@@ -3498,7 +3522,7 @@ async function loadAir() {
   const t = $('#aqTile'); if (t) t.innerHTML = airTileHTML();
   if ($('#aqSheet').classList.contains('open')) showAir();
 }
-function ampelHTML(c) { return `<span class="ampel" aria-hidden="true"><i class="r ${c === 'r' ? 'on' : ''}"></i><i class="y ${c === 'y' ? 'on' : ''}"></i><i class="g ${c === 'g' ? 'on' : ''}"></i></span>`; }
+function ampelHTML(c, mini) { return `<span class="ampel${mini ? ' mini' : ''}" aria-hidden="true"><i class="r ${c === 'r' ? 'on' : ''}"></i><i class="y ${c === 'y' ? 'on' : ''}"></i><i class="g ${c === 'g' ? 'on' : ''}"></i></span>`; }
 function airMain(c) {               // Schadstoff mit dem höchsten Teilindex
   return AQ_POL.map(p => ({ p, v: c[p[1]] })).filter(x => x.v != null).sort((a, b) => b.v - a.v)[0];
 }
