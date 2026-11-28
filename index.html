@@ -251,6 +251,19 @@
   .pol-ic:hover,.pol-ic:focus-visible{background:#eef6e8;outline:none}
   .pol-ic .leaf{position:absolute;right:-3px;bottom:-2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px #fff;display:grid;place-items:center}
   .pol-ic .leaf svg{width:15px;height:15px}
+  /* Boden: Temperatur und Feuchte in vier Tiefen */
+  .soil-row{display:grid;grid-template-columns:34px 92px 58px 1fr;align-items:center;gap:10px;padding:7px 14px 7px 0;border-bottom:1px solid var(--line)}
+  .soil-row:last-of-type{border-bottom:0}
+  .soil-row .lay{align-self:stretch;margin:-7px 0;display:grid;place-items:center;font-size:14px}
+  .soil-row .dp{font-size:13px;line-height:1.2}
+  .soil-row .dp small{display:block;color:var(--muted);font-size:11.5px}
+  .soil-row .tc{font-weight:700;font-size:15px;text-align:center;border-radius:8px;padding:3px 0}
+  .soil-row .mo{font-size:12px;color:var(--muted)}
+  .soil-row .mo i{display:block;height:7px;border-radius:4px;background:#e4e9ef;margin-bottom:3px;overflow:hidden}
+  .soil-row .mo i b{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#c9a46a,#4a90d9)}
+  .soil-notes{padding:8px 14px 4px}
+  .soil-notes p{margin:0 0 7px;font-size:14px;line-height:1.4}
+  .soil-src{margin:0 14px 12px;font-size:11px;color:var(--muted)}
   /* Biowetter */
   /* Hintergrundbild für „Stündlich“ und „7 Tage“ */
   html.has-wxbg .card.bgcard{background-image:linear-gradient(rgba(255,255,255,var(--wxbg-ov,.7)),rgba(255,255,255,var(--wxbg-ov,.7))),var(--wxbg);background-size:cover;background-position:center}
@@ -834,7 +847,7 @@ async function loadLocation(loc) {
     state.data = await getJSON(API.forecast + '?' + qs({
       latitude: loc.lat, longitude: loc.lon, timezone: 'auto', forecast_days: 16,
       current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-      hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index,pressure_msl,dew_point_2m,relative_humidity_2m,cloud_cover_low,cloud_cover_mid,cloud_cover_high,cape',
+      hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,snowfall,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index,pressure_msl,dew_point_2m,relative_humidity_2m,cloud_cover_low,cloud_cover_mid,cloud_cover_high,cape,soil_temperature_0cm,soil_temperature_6cm,soil_temperature_18cm,soil_temperature_54cm,soil_moisture_0_to_1cm,soil_moisture_3_to_9cm,soil_moisture_9_to_27cm,soil_moisture_27_to_81cm',
       daily: 'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,snowfall_sum,precipitation_probability_max,sunrise,sunset,sunshine_duration,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max'
     }));
     state.loadedAt = Date.now();
@@ -1223,6 +1236,52 @@ function segsHTML(date) {
     <div class="r">${s.prob != null ? s.prob + ' %' : ''}${s.rain >= 0.1 ? ' · ' + mm(s.rain) : ''}</div>
     <div class="w">${arrow(s.dir)} ${ws(s.wind)}</div>${s.gust != null ? `<div class="w">${gustHTML(s.gust)}</div>` : ''}</div>` : '<div></div>').join('')}</div>`;
 }
+/* ---------- Boden: Temperatur (0, 6, 18, 54 cm) und Feuchte (Modellwerte von Open-Meteo) ---------- */
+const SOIL = [['soil_temperature_0cm', 'soil_moisture_0_to_1cm', 0, ['Oberfläche', 'Surface'], '0 cm', '#9a7a52'],
+  ['soil_temperature_6cm', 'soil_moisture_3_to_9cm', 6, ['Saattiefe', 'Seed depth'], '6 cm', '#7d5f3d'],
+  ['soil_temperature_18cm', 'soil_moisture_9_to_27cm', 18, ['Wurzelzone', 'Root zone'], '18 cm', '#634a30'],
+  ['soil_temperature_54cm', 'soil_moisture_27_to_81cm', 54, ['Unterboden', 'Subsoil'], '54 cm', '#4b3824']];
+const soilTCol = t => t <= 0 ? ['#d6e8fb', '#1a5fb4'] : t < 5 ? ['#e3f0f7', '#2a6f8f'] : t < 10 ? ['#e6f4e1', '#3c7a2c'] : t < 20 ? ['#fdf1d8', '#9a6a00'] : ['#fde2d6', '#b4441c'];
+const soilMoist = m => m < 0.12 ? tr('sehr trocken', 'very dry') : m < 0.2 ? tr('trocken', 'dry') : m < 0.3 ? tr('feucht', 'moist') : m < 0.4 ? tr('sehr feucht', 'very moist') : tr('nass', 'wet');
+function soilHTML() {
+  const H = state.data.hourly, i0 = hourIdx();
+  if (!H.soil_temperature_0cm || H.soil_temperature_0cm[i0] == null) return '';
+  const v = k => H[k] ? H[k][i0] : null;
+  const rows = SOIL.map(([tk, mk, cm, nm, dp, col]) => {
+    const t = v(tk), m = v(mk); if (t == null) return '';
+    const [bg, fg] = soilTCol(t);
+    return `<div class="soil-row"><span class="lay" style="background:${col};color:#fff">${t <= 0 ? '❄' : ''}</span>
+      <span class="dp">${nm[LANG === 'en' ? 1 : 0]}<small>${dp}</small></span>
+      <span class="tc" style="background:${bg};color:${fg}">${tp(t)}°</span>
+      <span class="mo">${m != null ? `<i><b style="width:${Math.min(100, m / 0.45 * 100).toFixed(0)}%"></b></i>${Math.round(m * 100)} % · ${soilMoist(m)}` : ''}</span></div>`;
+  }).join('');
+  // Hinweise
+  const notes = [];
+  const frozen = SOIL.filter(([tk]) => v(tk) != null && v(tk) <= 0).map(x => x[2]);
+  if (frozen.length) {
+    const deep = Math.max(...frozen);
+    notes.push('❄️ ' + (deep === 0 ? tr('Die Bodenoberfläche ist gefroren.', 'The ground surface is frozen.') : tr(`Der Boden ist bis etwa ${deep} cm Tiefe gefroren.`, `The ground is frozen to about ${deep} cm deep.`)));
+  }
+  const nx = H.soil_temperature_0cm.slice(i0, i0 + 24).filter(x => x != null), mn = nx.length ? Math.min(...nx) : null;
+  if (mn != null && mn < 0 && v('soil_temperature_0cm') > 0) {
+    const at = i0 + H.soil_temperature_0cm.slice(i0, i0 + 24).findIndex(x => x != null && x < 0);
+    notes.push('🌡️ ' + tr(`Bodenfrost ab etwa ${hourLbl(H.time[at])} (bis ${tp(mn)}°) – empfindliche Pflanzen abdecken, Glätte auf Wegen möglich.`, `Ground frost from about ${hourLbl(H.time[at])} (down to ${tp(mn)}°) – cover sensitive plants, paths may get slippery.`));
+  }
+  const t6 = v('soil_temperature_6cm');
+  if (t6 != null) notes.push('🌱 ' + (t6 < 5 ? tr('Boden zu kalt zum Säen und Pflanzen.', 'Soil too cold for sowing and planting.')
+    : t6 < 8 ? tr('Robuste Aussaat möglich (Spinat, Erbsen, Radieschen).', 'Hardy sowing possible (spinach, peas, radishes).')
+    : t6 < 10 ? tr('Kartoffeln setzen und Zwiebeln stecken möglich.', 'Potatoes and onion sets can go in.')
+    : t6 < 15 ? tr('Gute Zeit, Rasen und Gemüse zu säen.', 'Good time to sow lawn and vegetables.')
+    : tr('Warmer Boden – auch Bohnen, Kürbis und Mais keimen gut.', 'Warm soil – beans, squash and maize germinate well too.')));
+  const mr = v('soil_moisture_9_to_27cm');
+  if (mr != null && !frozen.includes(18)) notes.push('💧 ' + (mr < 0.15 ? tr('Wurzelzone trocken – Pflanzen gründlich gießen.', 'Root zone dry – water plants thoroughly.')
+    : mr > 0.38 ? tr('Boden sehr nass – nicht befahren oder umgraben, Staunässe möglich.', 'Soil very wet – avoid driving on or digging it, waterlogging possible.')
+    : tr('Wurzelzone ausreichend feucht – gießen derzeit nicht nötig.', 'Root zone moist enough – no need to water now.')));
+  return `<div class="card"><h2>🌱 ${tr('Boden jetzt', 'Soil now')} <span>${tr('Temperatur & Feuchte', 'temperature & moisture')}</span></h2>
+    ${rows}<div class="soil-notes">${notes.map(n => `<p>${n}</p>`).join('')}</div>
+    <p class="soil-src">${tr('Modellwerte von Open-Meteo, keine Messung vor Ort. Feuchte als Wasseranteil im Boden (Volumen-%); was „trocken“ oder „nass“ ist, hängt auch von der Bodenart ab.', 'Model values from Open-Meteo, not a local measurement. Moisture as water content of the soil (volume %); what counts as “dry” or “wet” also depends on the soil type.')}</p></div>`;
+}
+
 /* ---------- Biowetter: Hinweise für Wetterfühlige (aus der stündlichen Vorhersage abgeleitet) ---------- */
 const BIO_COL = ['#2e9b57', '#d9a300', '#e8742c', '#d0342c'];
 const bioLv = l => [tr('keine', 'none'), tr('gering', 'low'), tr('mäßig', 'moderate'), tr('stark', 'strong')][l];
@@ -1999,6 +2058,7 @@ function viewToday() {
     </div></div>
   </div>
   <div class="card">${bioHTML()}</div>
+  ${soilHTML()}
   <div class="card" id="allergyCard">${allergyHTML()}</div>
   <div class="card"><h2>👗 ${tr('Was ziehe ich heute an?', 'What to wear today?')} ${genderSwitch()}</h2>${outfitHTML(0)}</div>
   <p class="note">${tr('Stand: ', 'Updated: ') + withUhr(C.time.slice(11, 16)) + tr(' (Ortszeit) · Wind in ', ' (local time) · wind in ') + wUnit()}</p>`;
