@@ -3415,6 +3415,16 @@ function speechText() {
   today += tr(', Wind aus ', ', wind from the ') + dirLong(D.wind_direction_10m_dominant[0]) + tr(' mit bis zu ', ' up to ') + spW(D.wind_speed_10m_max[0]);
   if (D.wind_gusts_10m_max[0] >= 50) today += tr(', in Böen bis ', ', gusts up to ') + spW(D.wind_gusts_10m_max[0]);
   S.push(today + '.');
+  // Luftqualität (sofern geladen): Einstufung, bei mäßiger oder schlechter Luft mit Hauptschadstoff und Tipp
+  const A = state.air;
+  if (A && A.c && !A.err && A.c.european_aqi != null) {
+    const v = A.c.european_aqi, lv = aqLevel(v), L2 = LANG === 'en' ? 1 : 0, m = airMain(A.c);
+    const nm = m ? m.p[2][L2].replace(/ ?PM2,5| ?PM2\.5/, tr(' der Größe PM 2,5', ' PM 2.5')).replace(/ ?PM10/, tr(' der Größe PM 10', ' PM 10')).replace(/ NO₂| O₃/, '') : '';
+    let t = tr('Die Luftqualität ist ', 'Air quality is ') + lv[2][L2].toLowerCase() + '.';
+    if (v >= 40 && nm) t += ' ' + tr('Hauptursache ist ', 'The main pollutant is ') + nm + '.';
+    if (v >= 60) t += ' ' + airAdvice(v);
+    S.push(t);
+  }
   if (D.sunshine_duration[0] != null && D.sunshine_duration[0] >= 3600 * 6) S.push(tr('Die Sonne scheint rund ', 'About ') + Math.round(D.sunshine_duration[0] / 3600) + tr(' Stunden.', ' hours of sunshine.'));
   // Wetterfühlige: nur deutliche Belastungen
   if (typeof bioDays === 'function') {
