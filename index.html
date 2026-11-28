@@ -333,6 +333,23 @@
   .cl-card .cmp{font-size:13.5px;color:#3d4a5a;background:#f3f6f9;border-radius:8px;padding:7px 9px;margin-top:6px}
   .cl-feat{font-size:11.5px;color:var(--muted);margin-top:6px}
 
+  /* Luftqualität als Ampel */
+  .details .aq-tile{grid-column:1/-1;display:flex;align-items:center;gap:12px;cursor:pointer}
+  .aq-tile:hover{background:#f7f9fb}
+  .ampel{display:flex;flex-direction:column;gap:3px;padding:4px 5px;border-radius:9px;background:#2a2f36;flex:none}
+  .ampel i{width:12px;height:12px;border-radius:50%;background:#4a5058;display:block}
+  .ampel i.on.g{background:#2fbf5b;box-shadow:0 0 6px #2fbf5b}
+  .ampel i.on.y{background:#f2c200;box-shadow:0 0 6px #f2c200}
+  .ampel i.on.r{background:#e5322d;box-shadow:0 0 6px #e5322d}
+  .aq-tile .t{flex:1;min-width:0}
+  .aq-tile .t b{font-size:16px}
+  .aq-tile .t em{display:block;font-style:normal;font-size:12px;color:var(--muted)}
+  .aq-tile .go{color:var(--muted);font-size:20px}
+  .aq-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--line)}
+  .aq-row .n{flex:1}
+  .aq-row .n small{display:block;color:var(--muted);font-size:12px}
+  .aq-row .v{font-weight:700;white-space:nowrap}
+  .aq-row .lv{font-size:12px;font-weight:700;color:#fff;padding:2px 8px;border-radius:10px;min-width:74px;text-align:center}
   .sheet{position:fixed;inset:0;z-index:120;background:rgba(10,20,35,.45);display:none;align-items:flex-end;justify-content:center}
   .sheet.open{display:flex}
   .sheet .box{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:88vh;overflow-y:auto;padding:0 0 calc(14px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px rgba(0,0,0,.25)}
@@ -623,6 +640,7 @@
 <div class="sheet" id="sayingSheet" role="dialog"><div class="box" id="sayingBox"></div></div>
 <div class="sheet" id="pollenSheet" role="dialog"><div class="box" id="pollenBox"></div></div>
 <div class="sheet" id="wxSheet" role="dialog"><div class="box" id="wxBox"></div></div>
+<div class="sheet" id="aqSheet" role="dialog"><div class="box" id="aqBox"></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
@@ -803,7 +821,7 @@ const key = l => l.lat.toFixed(3) + ',' + l.lon.toFixed(3);
 async function loadLocation(loc) {
   if (state.view === 'favs' || state.view === 'settings') state.view = state.prevView || 'today';
   if (speaking && window.speechSynthesis) { speechSynthesis.cancel(); speaking = false; }
-  state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null; state.radarSrc = null; state.pollen = null;
+  state.loc = loc; state.data = null; state.trend = null; state.trendFor = null; state.sel = null; state.radarSrc = null; state.pollen = null; state.air = null;
   store.set('lastLoc', loc);
   destroyRadar();
   renderHeader();
@@ -818,6 +836,7 @@ async function loadLocation(loc) {
     state.loadedAt = Date.now();
     render();
     loadPollen();
+    loadAir();
   } catch (e) {
     $('#main').innerHTML = `<div class="card pad">${tr('Die Wetterdaten konnten nicht geladen werden. Bitte Internetverbindung prüfen.', 'The weather data could not be loaded. Please check your internet connection.')}<br><br><button class="primary" id="retry">${tr('Erneut versuchen', 'Try again')}</button></div>`;
     $('#retry').onclick = () => loadLocation(loc);
@@ -1963,6 +1982,7 @@ function viewToday() {
       <div><small>${tr('Sonnenstunden', 'Sunshine')}</small><b>${sun}</b></div>
       <div><small>${tr('Sonnenauf-/untergang', 'Sunrise / sunset')}</small><b>${hhmm(D.sunrise[0])} / ${hhmm(D.sunset[0])}</b></div>
       <div><small>${tr('UV-Index max.', 'Max. UV index')}</small><b>${r0(D.uv_index_max[0])}</b></div>
+      <div class="aq-tile" id="aqTile">${airTileHTML()}</div>
     </div>
   </div>
   <div class="card bgcard"><h2>${tr('Stündlich', 'Hourly')} <span>${tr('nächste 24 Stunden', 'next 24 hours')}</span></h2>
@@ -2691,6 +2711,7 @@ function setLang(l) {
   if ($('#sayingSheet').classList.contains('open')) showSaying();
   if ($('#outfitSheet').classList.contains('open')) showOutfit(outfitDay);
   if ($('#wxSheet').classList.contains('open')) showWx();
+  if ($('#aqSheet').classList.contains('open')) showAir();
 }
 function settingsClick(e) {
   const b = e.target.closest('button'); if (!b) return;
@@ -3444,6 +3465,73 @@ function speakWeather() {
 if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); }
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#wxSpeakBtn')) { e.stopPropagation(); speakWeather(); } });
 window.addEventListener('pagehide', () => { if (window.speechSynthesis) speechSynthesis.cancel(); });
+
+/* ---------- Luftqualität (Europäischer Luftqualitätsindex, Open-Meteo/CAMS – weltweit) als Ampel ---------- */
+const AQ_LV = [[20, 'g', ['Gut', 'Good'], '#2fbf5b'], [40, 'g', ['Recht gut', 'Fair'], '#7cc242'], [60, 'y', ['Mäßig', 'Moderate'], '#f2c200'],
+  [80, 'r', ['Schlecht', 'Poor'], '#e8742c'], [100, 'r', ['Sehr schlecht', 'Very poor'], '#e5322d'], [1e9, 'r', ['Extrem schlecht', 'Extremely poor'], '#8e1d4f']];
+const aqLevel = v => AQ_LV.find(([lim]) => v < lim);
+const AQ_POL = [['pm2_5', 'european_aqi_pm2_5', ['Feinstaub PM2,5', 'Fine particles PM2.5'], ['sehr feine Partikel aus Verkehr, Heizung, Industrie', 'very fine particles from traffic, heating, industry']],
+  ['pm10', 'european_aqi_pm10', ['Feinstaub PM10', 'Particles PM10'], ['Staub, Abrieb, Saharastaub, Holzfeuer', 'dust, abrasion, Saharan dust, wood fires']],
+  ['nitrogen_dioxide', 'european_aqi_nitrogen_dioxide', ['Stickstoffdioxid NO₂', 'Nitrogen dioxide NO₂'], ['vor allem Straßenverkehr', 'mainly road traffic']],
+  ['ozone', 'european_aqi_ozone', ['Ozon O₃', 'Ozone O₃'], ['entsteht bei Sonne aus Abgasen, meist nachmittags', 'forms in sunshine from exhaust gases, mostly in the afternoon']]];
+async function loadAir() {
+  const loc = state.loc; if (!loc) return;
+  const k = key(loc);
+  if (state.air && state.air.k === k) return;
+  state.air = { k, loading: true };
+  try {
+    const fields = ['european_aqi', 'us_aqi', ...AQ_POL.flatMap(p => [p[0], p[1]])].join(',');
+    const j = await getJSON(API.air + '?' + qs({ latitude: loc.lat, longitude: loc.lon, timezone: 'auto', current: fields }));
+    if (!state.air || state.air.k !== k) return;
+    state.air = { k, c: j.current || null, err: !j.current || j.current.european_aqi == null };
+  } catch (e) { if (state.air && state.air.k === k) state.air = { k, err: true }; }
+  const t = $('#aqTile'); if (t) t.innerHTML = airTileHTML();
+  if ($('#aqSheet').classList.contains('open')) showAir();
+}
+function ampelHTML(c) { return `<span class="ampel" aria-hidden="true"><i class="r ${c === 'r' ? 'on' : ''}"></i><i class="y ${c === 'y' ? 'on' : ''}"></i><i class="g ${c === 'g' ? 'on' : ''}"></i></span>`; }
+function airMain(c) {               // Schadstoff mit dem höchsten Teilindex
+  return AQ_POL.map(p => ({ p, v: c[p[1]] })).filter(x => x.v != null).sort((a, b) => b.v - a.v)[0];
+}
+function airTileHTML() {
+  const A = state.air, L2 = LANG === 'en' ? 1 : 0;
+  const head = `<small>${tr('Luftqualität', 'Air quality')}</small>`;
+  if (!A || A.loading) return `${ampelHTML('')}<div class="t">${head}<b>${tr('wird geladen …', 'loading …')}</b></div>`;
+  if (A.err) return `${ampelHTML('')}<div class="t">${head}<b>${tr('nicht verfügbar', 'not available')}</b></div>`;
+  const v = A.c.european_aqi, lv = aqLevel(v), m = airMain(A.c);
+  return `${ampelHTML(lv[1])}<div class="t">${head}<b>${lv[2][L2]} <span style="font-weight:400;color:var(--muted);font-size:13px">· ${tr('Index', 'index')} ${Math.round(v)}</span></b>`
+    + `<em>${m && v >= 20 ? tr('Hauptursache: ', 'Main pollutant: ') + m.p[2][L2] : tr('Saubere Luft', 'Clean air')}</em></div><span class="go">›</span>`;
+}
+function airAdvice(v) {
+  return v < 40 ? tr('Ideal für Aktivitäten im Freien.', 'Ideal for outdoor activities.')
+    : v < 60 ? tr('Für die meisten unbedenklich. Empfindliche Menschen (Asthma, Herz-Kreislauf) sollten lange, starke Anstrengung im Freien eher meiden.', 'Fine for most people. Sensitive people (asthma, heart conditions) should avoid long, strenuous outdoor exertion.')
+    : v < 80 ? tr('Empfindliche Menschen sollten Anstrengung im Freien reduzieren; alle anderen bei Beschwerden ebenso.', 'Sensitive people should reduce outdoor exertion; everyone else too if symptoms occur.')
+    : tr('Anstrengung im Freien vermeiden, Fenster zu den Hauptverkehrszeiten geschlossen halten.', 'Avoid outdoor exertion and keep windows closed at rush hour.');
+}
+function showAir() {
+  const A = state.air, L2 = LANG === 'en' ? 1 : 0;
+  let body;
+  if (!A || A.loading) body = `<div class="pad">${tr('Wird geladen …', 'Loading …')}</div>`;
+  else if (A.err) body = `<div class="pad">${tr('Für diesen Ort sind derzeit keine Luftqualitätsdaten verfügbar.', 'No air quality data is currently available for this place.')}</div>`;
+  else {
+    const c = A.c, v = c.european_aqi, lv = aqLevel(v);
+    body = `<div class="aq-row" style="gap:14px">${ampelHTML(lv[1])}<div class="n"><b style="font-size:18px">${lv[2][L2]}</b><small>${tr('Europäischer Luftqualitätsindex', 'European Air Quality Index')}: ${Math.round(v)}${c.us_aqi != null ? ` · US AQI ${Math.round(c.us_aqi)}` : ''}</small></div></div>`
+      + `<div class="pad" style="padding-top:10px;padding-bottom:4px">${airAdvice(v)}</div>`
+      + AQ_POL.map(([f, sub, n, why]) => {
+        if (c[f] == null) return '';
+        const sl = c[sub] != null ? aqLevel(c[sub]) : null;
+        return `<div class="aq-row"><div class="n">${n[L2]}<small>${why[L2]}</small></div><span class="v">${dec(c[f], c[f] < 10 ? 1 : 0)} µg/m³</span>${sl ? `<span class="lv" style="background:${sl[3]}">${sl[2][L2]}</span>` : ''}</div>`;
+      }).join('')
+      + `<p class="pad" style="font-size:12px;color:var(--muted);margin:0">${tr('Modellwerte des EU-Dienstes Copernicus (CAMS) über Open-Meteo – in Europa ca. 11 km, sonst ca. 40 km aufgelöst; keine Messstation vor Ort. Index: 0–20 gut, 20–40 recht gut, 40–60 mäßig, 60–80 schlecht, 80–100 sehr schlecht, über 100 extrem schlecht.', 'Model values from the EU Copernicus service (CAMS) via Open-Meteo – about 11 km resolution in Europe, about 40 km elsewhere; not a local measuring station. Index: 0–20 good, 20–40 fair, 40–60 moderate, 60–80 poor, 80–100 very poor, above 100 extremely poor.')}</p>`;
+  }
+  $('#aqBox').innerHTML = `<div class="hd"><div><b>🌬️ ${tr('Luftqualität', 'Air quality')}</b><small>${esc(state.loc ? state.loc.name : '')} · ${tr('jetzt', 'now')}</small></div>
+    <button class="icon-btn" id="aqClose" aria-label="${tr('Schließen', 'Close')}" style="color:var(--text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>${body}`;
+  $('#aqSheet').setAttribute('aria-label', tr('Luftqualität', 'Air quality'));
+  $('#aqSheet').classList.add('open');
+  $('#aqClose').onclick = () => $('#aqSheet').classList.remove('open');
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#aqTile')) showAir(); });
+$('#aqSheet').addEventListener('click', e => { if (e.target.id === 'aqSheet') $('#aqSheet').classList.remove('open'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#aqSheet').classList.remove('open'); });
 
 /* ---------- „Wetter erklärt“: das aktuelle Wetter verständlich erklärt ---------- */
 const wxGroup = c => c <= 1 ? 'clear' : c <= 3 ? 'cloud' : c <= 48 ? 'fog' : c <= 57 ? 'drizzle' : c <= 67 || (c >= 80 && c <= 82) ? 'rain' : c <= 77 || c === 85 || c === 86 ? 'snow' : 'thunder';
